@@ -1,0 +1,6 @@
+{
+  "name": "MyStudy",
+  "description": "Aplicativo de organização pessoal e de estudos para estudantes, com cursos, disciplinas, materiais, modo aula, horários e apontamentos.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
