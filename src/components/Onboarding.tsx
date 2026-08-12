@@ -8,6 +8,7 @@ import {
   Clock,
   GraduationCap,
   Sparkles,
+  Download,
 } from 'lucide-react';
 import {
   savePerfil,
@@ -20,6 +21,7 @@ import {
   deleteDisciplina,
 } from '../lib/storage';
 import { Curso, Disciplina } from '../types';
+import { BackupRestoreModal } from './BackupRestoreModal';
 
 interface OnboardingProps {
   onConcluido: () => void;
@@ -28,6 +30,7 @@ interface OnboardingProps {
 export const Onboarding: React.FC<OnboardingProps> = ({ onConcluido }) => {
   const [etapa, setEtapa] = useState<number>(1);
   const [nomeEstudanteInput, setNomeEstudanteInput] = useState('');
+  const [modalBackupAberto, setModalBackupAberto] = useState(false);
 
   // Course creation inputs
   const [novoCursoNome, setNovoCursoNome] = useState('');
@@ -188,9 +191,23 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onConcluido }) => {
                 onClick={handleStart}
                 className="w-full py-3.5 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-2xl transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>Começar</span>
+                <span>Começar a utilizar o MyStudy</span>
                 <ArrowRight className="w-5 h-5" />
               </button>
+
+              <div className="pt-3 border-t border-slate-200/80 space-y-2">
+                <p className="text-xs text-slate-500 font-medium">
+                  Já possui um backup dos seus estudos?
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setModalBackupAberto(true)}
+                  className="w-full py-3 px-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-extrabold text-xs rounded-2xl border border-emerald-200 transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+                >
+                  <Download className="w-4 h-4 text-emerald-600" />
+                  <span>📥 Restaurar backup</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -530,6 +547,17 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onConcluido }) => {
           )}
         </div>
       </div>
+
+      {modalBackupAberto && (
+        <BackupRestoreModal
+          abaInicial="restaurar"
+          onFechar={() => setModalBackupAberto(false)}
+          onRestauradoComSucesso={() => {
+            setModalBackupAberto(false);
+            onConcluido();
+          }}
+        />
+      )}
     </div>
   );
 };

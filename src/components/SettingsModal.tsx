@@ -9,6 +9,10 @@ import {
   Check,
   GraduationCap,
   Sparkles,
+  Database,
+  Upload,
+  Download,
+  FolderArchive,
 } from 'lucide-react';
 import {
   getPerfil,
@@ -17,6 +21,7 @@ import {
   limparTodosDados,
 } from '../lib/storage';
 import { VisualizacaoAtual } from '../types';
+import { BackupRestoreModal } from './BackupRestoreModal';
 
 interface SettingsModalProps {
   onNavegar: (view: VisualizacaoAtual) => void;
@@ -36,6 +41,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     perfil.dicasEstudoAtivas
   );
   const [mensagemSucesso, setMensagemSucesso] = useState('');
+  const [modalBackup, setModalBackup] = useState<{
+    aberto: boolean;
+    aba: 'exportar' | 'restaurar';
+  }>({ aberto: false, aba: 'exportar' });
 
   const handleSalvarPreferencias = (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,6 +174,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </button>
       </form>
 
+      {/* Dados e Armazenamento -> Backup e Dados */}
+      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div className="border-b border-slate-100 pb-3">
+          <span className="text-[10px] uppercase font-bold text-indigo-600 tracking-wider block">
+            Dados e armazenamento
+          </span>
+          <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 mt-0.5">
+            <Database className="w-4 h-4 text-indigo-600" />
+            <span>Backup e dados</span>
+          </h2>
+        </div>
+
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Exporte uma cópia completa de todos os seus cursos, disciplinas, materiais e apontamentos num ficheiro ZIP organizado, ou restaure um backup existente.
+        </p>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          <button
+            type="button"
+            onClick={() => setModalBackup({ aberto: true, aba: 'exportar' })}
+            className="p-3.5 bg-indigo-50 border border-indigo-200 text-indigo-900 font-extrabold text-xs rounded-2xl hover:bg-indigo-100 transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+          >
+            <Upload className="w-4 h-4 text-indigo-600" />
+            <span>📤 Exportar backup</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setModalBackup({ aberto: true, aba: 'restaurar' })}
+            className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-900 font-extrabold text-xs rounded-2xl hover:bg-emerald-100 transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+          >
+            <Download className="w-4 h-4 text-emerald-600" />
+            <span>📥 Restaurar backup</span>
+          </button>
+        </div>
+      </div>
+
       {/* Advanced Data Management */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
         <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 border-b border-slate-100 pb-3">
@@ -217,6 +263,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Modal de Backup / Restauração */}
+      {modalBackup.aberto && (
+        <BackupRestoreModal
+          abaInicial={modalBackup.aba}
+          onFechar={() => setModalBackup({ ...modalBackup, aberto: false })}
+          onRestauradoComSucesso={() => {
+            onNavegar({ tipo: 'inicio' });
+          }}
+        />
+      )}
     </div>
   );
 };

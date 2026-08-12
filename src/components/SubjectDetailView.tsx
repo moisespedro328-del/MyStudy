@@ -887,7 +887,7 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
             handleExcluirMaterial(id);
             setMaterialSelecionado(null);
           }}
-          onAtualizado={carregarDados}
+          onAtualizado={recarregar}
         />
       )}
 
@@ -896,8 +896,8 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
         <MaterialActionMenuModal
           material={materialParaMenu}
           onFechar={() => setMaterialParaMenu(null)}
-          onAtualizado={carregarDados}
-          onRemovido={carregarDados}
+          onAtualizado={recarregar}
+          onRemovido={recarregar}
         />
       )}
 

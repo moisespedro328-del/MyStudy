@@ -9,7 +9,7 @@ import {
   PerfilEstudante,
 } from '../types';
 
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   PERFIL: 'org_estudante_perfil_v1',
   CURSOS: 'org_estudante_cursos_v1',
   DISCIPLINAS: 'org_estudante_disciplinas_v1',
@@ -31,7 +31,7 @@ export function subscribeToStorage(listener: StorageListener): () => void {
   };
 }
 
-function notifyStorageChange() {
+export function notifyStorageChange() {
   listeners.forEach((listener) => listener());
 }
 
