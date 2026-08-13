@@ -150,24 +150,16 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
             </span>
             <h1 className="text-2xl font-extrabold text-slate-800">{curso.nome}</h1>
           </div>
-          <button
-            type="button"
-            onClick={handleExcluirCurso}
-            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition cursor-pointer"
-            title="Excluir Curso"
-          >
-            <Trash2 className="w-5 h-5" />
-          </button>
         </div>
 
-        {/* Exclusively "+ Adicionar Disciplina" button inside a Course page */}
+        {/* Exclusively "+ Disciplina" button inside a Course page */}
         <button
           type="button"
           onClick={handleAbrirModalCriar}
-          className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-2xl transition shadow-md flex items-center justify-center gap-1.5 text-xs shrink-0 cursor-pointer"
+          className="px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-2xl transition shadow-md flex items-center justify-center gap-1.5 text-xs shrink-0 cursor-pointer whitespace-nowrap"
         >
           <Plus className="w-4 h-4" />
-          <span>Adicionar Disciplina</span>
+          <span>Disciplina</span>
         </button>
       </div>
 
@@ -190,7 +182,7 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
               className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-xl text-xs hover:bg-indigo-700 transition cursor-pointer inline-flex items-center gap-1"
             >
               <Plus className="w-4 h-4" />
-              <span>Adicionar Disciplina</span>
+              <span>Disciplina</span>
             </button>
           </div>
         ) : (
