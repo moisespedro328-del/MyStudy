@@ -135,6 +135,73 @@ export function deleteCurso(cursoId: string): void {
   notifyStorageChange();
 }
 
+/**
+  * Obter cursos ordenados pelas alterações mais recentes em suas disciplinas, materiais, apontamentos ou sessões.
+  */
+export function getCursosComAlteracoesRecentes(limit = 3): Curso[] {
+  const cursos = getCursos();
+  if (cursos.length === 0) return [];
+
+  const disciplinas = getDisciplinas();
+  const materiais = getMateriais();
+  const apontamentos = getApontamentos();
+  const informacoes = getInformacoesImportantes();
+  const sessoes = getSessoesAula();
+
+  const parseTime = (dateStr?: string) => {
+    if (!dateStr) return 0;
+    const t = new Date(dateStr).getTime();
+    return isNaN(t) ? 0 : t;
+  };
+
+  const cursosComUltimaAtividade = cursos.map((curso) => {
+    let maxTime = parseTime(curso.dataCriacao);
+
+    const discDoCurso = disciplinas.filter((d) => d.cursoId === curso.id);
+    const discIds = new Set(discDoCurso.map((d) => d.id));
+
+    discDoCurso.forEach((d) => {
+      const t = parseTime(d.dataCriacao);
+      if (t > maxTime) maxTime = t;
+    });
+
+    materiais.forEach((m) => {
+      if (discIds.has(m.disciplinaId)) {
+        const t = parseTime(m.dataCriacao);
+        if (t > maxTime) maxTime = t;
+      }
+    });
+
+    apontamentos.forEach((a) => {
+      if (discIds.has(a.disciplinaId)) {
+        const t = parseTime(a.dataAtualizacao || a.dataCriacao);
+        if (t > maxTime) maxTime = t;
+      }
+    });
+
+    informacoes.forEach((i) => {
+      if (discIds.has(i.disciplinaId)) {
+        const t = parseTime(i.dataCriacao);
+        if (t > maxTime) maxTime = t;
+      }
+    });
+
+    sessoes.forEach((s) => {
+      if (discIds.has(s.disciplinaId)) {
+        const t = parseTime(s.dataInicio);
+        if (t > maxTime) maxTime = t;
+      }
+    });
+
+    return { curso, maxTime };
+  });
+
+  // Sort descending by maxTime
+  cursosComUltimaAtividade.sort((a, b) => b.maxTime - a.maxTime);
+
+  return cursosComUltimaAtividade.slice(0, limit).map((item) => item.curso);
+}
+
 // --- Disciplinas ---
 
 export function getDisciplinas(): Disciplina[] {

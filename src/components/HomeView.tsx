@@ -11,11 +11,12 @@ import {
   Sparkles,
 } from 'lucide-react';
 import {
-  getCursos,
+  getCursosComAlteracoesRecentes,
   getDisciplinasPorCurso,
   getInformacoesImportantes,
   getProximasAulasHoje,
   getPerfil,
+  subscribeToStorage,
 } from '../lib/storage';
 import { VisualizacaoAtual, Curso, InformacaoImportante } from '../types';
 import { getDicaAleatoria, DicaEstudo } from '../lib/notifications';
@@ -25,21 +26,40 @@ interface HomeViewProps {
 }
 
 export const HomeView: React.FC<HomeViewProps> = ({ onNavegar }) => {
-  const [cursos, setCursos] = useState<Curso[]>([]);
-  const [informacoes, setInformacoes] = useState<InformacaoImportante[]>([]);
+  const [cursosRecentes, setCursosRecentes] = useState<Curso[]>([]);
+  const [informacoesRecentes, setInformacoesRecentes] = useState<InformacaoImportante[]>([]);
   const [proximasAulas, setProximasAulas] = useState<
     ReturnType<typeof getProximasAulasHoje>
   >([]);
   const [dicaAtual, setDicaAtual] = useState<DicaEstudo | null>(null);
   const perfil = getPerfil();
 
-  useEffect(() => {
-    setCursos(getCursos());
-    setInformacoes(getInformacoesImportantes().slice(0, 3)); // show top 3
+  const recarregarDados = () => {
+    // 1. Apenas os 3 cursos com alterações mais recentes nas disciplinas/conteúdos
+    setCursosRecentes(getCursosComAlteracoesRecentes(3));
+
+    // 2. Apenas os 3 avisos/informações importantes mais recentes
+    const todasInfos = getInformacoesImportantes();
+    const ordenadas = todasInfos.slice().sort((a, b) => {
+      const tA = new Date(a.dataCriacao || 0).getTime();
+      const tB = new Date(b.dataCriacao || 0).getTime();
+      return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
+    });
+    setInformacoesRecentes(ordenadas.slice(0, 3));
+
     setProximasAulas(getProximasAulasHoje());
+  };
+
+  useEffect(() => {
+    recarregarDados();
     if (perfil.dicasEstudoAtivas) {
       setDicaAtual(getDicaAleatoria());
     }
+
+    const unsubscribe = subscribeToStorage(() => {
+      recarregarDados();
+    });
+    return unsubscribe;
   }, []);
 
   // Format today date in Portuguese
@@ -169,24 +189,29 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavegar }) => {
         )}
       </div>
 
-      {/* Meus Cursos Section */}
+      {/* Meus Cursos Section (Top 3 Cursos Recentes) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-indigo-600" />
-            <span>Meus Cursos</span>
-          </h2>
+          <div>
+            <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-indigo-600" />
+              <span>Cursos Recentes</span>
+            </h2>
+            <p className="text-[11px] text-slate-500 font-medium">
+              3 cursos com alterações ou conteúdos mais recentes
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => onNavegar({ tipo: 'cursos' })}
-            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5 cursor-pointer"
+            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5 cursor-pointer shrink-0"
           >
-            <span>Gerenciar</span>
+            <span>Ver todos</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {cursos.length === 0 ? (
+        {cursosRecentes.length === 0 ? (
           <div className="bg-white p-6 rounded-3xl border border-dashed border-slate-200 text-center space-y-3">
             <p className="text-slate-500 text-xs">Você ainda não possui cursos cadastrados.</p>
             <button
@@ -199,8 +224,8 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavegar }) => {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {cursos.map((curso) => {
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {cursosRecentes.map((curso) => {
               const numDisc = getDisciplinasPorCurso(curso.id).length;
               return (
                 <div
@@ -208,13 +233,13 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavegar }) => {
                   onClick={() => onNavegar({ tipo: 'curso_detalhe', cursoId: curso.id })}
                   className="p-4 bg-white rounded-2xl border border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition cursor-pointer flex items-center justify-between group"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <div
-                      className="w-4 h-10 rounded-full shrink-0"
+                      className="w-3.5 h-10 rounded-full shrink-0"
                       style={{ backgroundColor: curso.cor }}
                     ></div>
-                    <div>
-                      <h3 className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition">
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition truncate">
                         {curso.nome}
                       </h3>
                       <p className="text-slate-500 text-xs">
@@ -222,7 +247,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavegar }) => {
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition" />
+                  <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition shrink-0 ml-1" />
                 </div>
               );
             })}
@@ -230,30 +255,35 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavegar }) => {
         )}
       </div>
 
-      {/* Informações Importantes Summary */}
+      {/* Informações Importantes Summary (Top 3) */}
       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-            <Bookmark className="w-5 h-5 text-amber-500 fill-amber-500" />
-            <span>Informações Importantes</span>
-          </h2>
+          <div>
+            <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+              <Bookmark className="w-5 h-5 text-amber-500 fill-amber-500" />
+              <span>Avisos Importantes Recentes</span>
+            </h2>
+            <p className="text-[11px] text-slate-500 font-medium">
+              3 avisos e lembretes mais recentes
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => onNavegar({ tipo: 'informacoes_importantes' })}
-            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5 cursor-pointer"
+            className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5 cursor-pointer shrink-0"
           >
             <span>Ver todas</span>
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {informacoes.length === 0 ? (
+        {informacoesRecentes.length === 0 ? (
           <p className="text-slate-400 text-xs italic py-2 text-center">
             Nenhuma informação importante marcada até agora.
           </p>
         ) : (
           <div className="space-y-2">
-            {informacoes.map((item) => (
+            {informacoesRecentes.map((item) => (
               <div
                 key={item.id}
                 className="p-3 bg-amber-50/60 border border-amber-200/70 rounded-2xl space-y-1"
