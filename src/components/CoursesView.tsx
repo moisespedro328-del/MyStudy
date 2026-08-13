@@ -17,6 +17,7 @@ import {
   CORES_PALETA,
 } from '../lib/storage';
 import { Curso, VisualizacaoAtual } from '../types';
+import { ConfirmModal } from './ConfirmModal';
 
 interface CoursesViewProps {
   onNavegar: (view: VisualizacaoAtual) => void;
@@ -26,6 +27,7 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ onNavegar }) => {
   const [cursos, setCursos] = useState<Curso[]>([]);
   const [modalAberto, setModalAberto] = useState(false);
   const [cursoEmEdicao, setCursoEmEdicao] = useState<Curso | null>(null);
+  const [cursoParaExcluirId, setCursoParaExcluirId] = useState<string | null>(null);
 
   // Form states
   const [nome, setNome] = useState('');
@@ -56,12 +58,13 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ onNavegar }) => {
 
   const handleExcluirCurso = (cursoId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (
-      window.confirm(
-        'Mover este curso para a Lixeira? As disciplinas e conteúdos serão guardados com ele.'
-      )
-    ) {
-      enviarCursoParaLixeira(cursoId);
+    setCursoParaExcluirId(cursoId);
+  };
+
+  const handleConfirmarExcluirCurso = () => {
+    if (cursoParaExcluirId) {
+      enviarCursoParaLixeira(cursoParaExcluirId);
+      setCursoParaExcluirId(null);
       recarregar();
     }
   };
@@ -252,6 +255,16 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ onNavegar }) => {
           </div>
         </div>
       )}
+      {/* Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={!!cursoParaExcluirId}
+        titulo="Excluir Curso"
+        mensagem="Enviar este curso para a Lixeira?"
+        textoConfirmar="Enviar para a Lixeira"
+        textoCancelar="Cancelar"
+        onConfirmar={handleConfirmarExcluirCurso}
+        onCancelar={() => setCursoParaExcluirId(null)}
+      />
     </div>
   );
 };

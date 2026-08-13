@@ -16,6 +16,7 @@ import {
   enviarInformacaoParaLixeira,
 } from '../lib/storage';
 import { InformacaoImportante, Disciplina, Curso, VisualizacaoAtual } from '../types';
+import { ConfirmModal } from './ConfirmModal';
 
 interface InformacoesImportantesViewProps {
   onNavegar: (view: VisualizacaoAtual) => void;
@@ -37,6 +38,8 @@ export const InformacoesImportantesView: React.FC<InformacoesImportantesViewProp
   const [discSelecionada, setDiscSelecionada] = useState<string>('');
   const [textoInput, setTextoInput] = useState('');
   const [origemInput, setOrigemInput] = useState('');
+
+  const [infoParaExcluirId, setInfoParaExcluirId] = useState<string | null>(null);
 
   const recarregar = () => {
     setInformacoes(getInformacoesImportantes());
@@ -69,8 +72,13 @@ export const InformacoesImportantesView: React.FC<InformacoesImportantesViewProp
   };
 
   const handleExcluir = (id: string) => {
-    if (window.confirm('Mover esta informação importante para a Lixeira?')) {
-      enviarInformacaoParaLixeira(id);
+    setInfoParaExcluirId(id);
+  };
+
+  const handleConfirmarExcluir = () => {
+    if (infoParaExcluirId) {
+      enviarInformacaoParaLixeira(infoParaExcluirId);
+      setInfoParaExcluirId(null);
       recarregar();
     }
   };
@@ -286,6 +294,16 @@ export const InformacoesImportantesView: React.FC<InformacoesImportantesViewProp
           </div>
         </div>
       )}
+      {/* Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={!!infoParaExcluirId}
+        titulo="Excluir Informação Important"
+        mensagem="Enviar esta informação importante para a Lixeira?"
+        textoConfirmar="Enviar para a Lixeira"
+        textoCancelar="Cancelar"
+        onConfirmar={handleConfirmarExcluir}
+        onCancelar={() => setInfoParaExcluirId(null)}
+      />
     </div>
   );
 };

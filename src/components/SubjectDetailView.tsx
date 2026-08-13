@@ -32,6 +32,7 @@ import {
   enviarMaterialParaLixeira,
   enviarApontamentoParaLixeira,
   enviarInformacaoParaLixeira,
+  enviarDisciplinaParaLixeira,
   saveApontamento,
   saveInformacaoImportante,
   enviarSessaoParaLixeira,
@@ -50,6 +51,14 @@ import { MaterialModal } from './MaterialModal';
 import { MaterialViewerModal } from './MaterialViewerModal';
 import { MaterialActionMenuModal } from './MaterialActionMenuModal';
 import { SessionDetailModal } from './SessionDetailModal';
+import { ConfirmModal } from './ConfirmModal';
+import {
+  CategoriaMaterial,
+  CATEGORIAS_CONFIG,
+  getCategoriaMaterial,
+  isModoAulaMaterial,
+  getContadoresCategorias,
+} from '../lib/materialUtils';
 
 interface SubjectDetailViewProps {
   disciplinaId: string;
@@ -92,8 +101,47 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
   const [textoInformacao, setTextoInformacao] = useState('');
   const [origemInformacao, setOrigemInformacao] = useState('');
 
-  // Search filter
+  // Delete Confirm Modal States
+  const [apontamentoParaExcluirId, setApontamentoParaExcluirId] = useState<string | null>(null);
+  const [infoParaExcluirId, setInfoParaExcluirId] = useState<string | null>(null);
+  const [confirmarExcluirDisciplina, setConfirmarExcluirDisciplina] = useState(false);
+  const [materialParaExcluirId, setMaterialParaExcluirId] = useState<string | null>(null);
+  const [sessaoParaExcluirId, setSessaoParaExcluirId] = useState<string | null>(null);
+
+  // Search filter & Material Categories
   const [busca, setBusca] = useState('');
+  const [categoriaFiltro, setCategoriaFiltro] = useState<CategoriaMaterial | 'todas'>('todas');
+  const [ordenacao, setOrdenacao] = useState<'recentes' | 'antigos' | 'az'>('recentes');
+
+  // Computed counters & filtered materials
+  const contadores = getContadoresCategorias(materiais);
+
+  const materiaisFiltrados = materiais
+    .filter((m) => {
+      if (categoriaFiltro !== 'todas' && getCategoriaMaterial(m) !== categoriaFiltro) {
+        return false;
+      }
+      if (busca.trim()) {
+        const q = busca.toLowerCase();
+        const matchTitulo = m.titulo.toLowerCase().includes(q);
+        const matchNome = (m.nomeArquivo || '').toLowerCase().includes(q);
+        const matchConteudo = (m.conteudo || '').toLowerCase().includes(q);
+        return matchTitulo || matchNome || matchConteudo;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (ordenacao === 'recentes') {
+        return new Date(b.dataCriacao).getTime() - new Date(a.dataCriacao).getTime();
+      }
+      if (ordenacao === 'antigos') {
+        return new Date(a.dataCriacao).getTime() - new Date(b.dataCriacao).getTime();
+      }
+      if (ordenacao === 'az') {
+        return a.titulo.localeCompare(b.titulo);
+      }
+      return 0;
+    });
 
   const recarregar = () => {
     const discList = getDisciplinas();
@@ -150,8 +198,13 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
   };
 
   const handleExcluirApontamento = (id: string) => {
-    if (window.confirm('Mover este apontamento para a Lixeira?')) {
-      enviarApontamentoParaLixeira(id);
+    setApontamentoParaExcluirId(id);
+  };
+
+  const handleConfirmarExcluirApontamento = () => {
+    if (apontamentoParaExcluirId) {
+      enviarApontamentoParaLixeira(apontamentoParaExcluirId);
+      setApontamentoParaExcluirId(null);
       recarregar();
     }
   };
@@ -174,24 +227,55 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
   };
 
   const handleExcluirInformacao = (id: string) => {
-    if (window.confirm('Mover esta informação para a Lixeira?')) {
-      enviarInformacaoParaLixeira(id);
+    setInfoParaExcluirId(id);
+  };
+
+  const handleConfirmarExcluirInformacao = () => {
+    if (infoParaExcluirId) {
+      enviarInformacaoParaLixeira(infoParaExcluirId);
+      setInfoParaExcluirId(null);
       recarregar();
+    }
+  };
+
+  const handleExcluirDisciplina = () => {
+    setConfirmarExcluirDisciplina(true);
+  };
+
+  const handleConfirmarExcluirDisciplinaAcao = () => {
+    if (disciplina) {
+      enviarDisciplinaParaLixeira(disciplina.id);
+      setConfirmarExcluirDisciplina(false);
+      if (curso) {
+        onNavegar({ tipo: 'curso_detalhe', cursoId: curso.id });
+      } else {
+        onNavegar({ tipo: 'cursos' });
+      }
     }
   };
 
   // Handle Material Delete
   const handleExcluirMaterial = (id: string) => {
-    if (window.confirm('Mover este material para a Lixeira?')) {
-      enviarMaterialParaLixeira(id);
+    setMaterialParaExcluirId(id);
+  };
+
+  const handleConfirmarExcluirMaterial = () => {
+    if (materialParaExcluirId) {
+      enviarMaterialParaLixeira(materialParaExcluirId);
+      setMaterialParaExcluirId(null);
       recarregar();
     }
   };
 
   // Handle Session Delete
   const handleExcluirSessao = (id: string) => {
-    if (window.confirm('Mover o registo desta aula para a Lixeira?')) {
-      enviarSessaoParaLixeira(id);
+    setSessaoParaExcluirId(id);
+  };
+
+  const handleConfirmarExcluirSessao = () => {
+    if (sessaoParaExcluirId) {
+      enviarSessaoParaLixeira(sessaoParaExcluirId);
+      setSessaoParaExcluirId(null);
       recarregar();
     }
   };
@@ -228,13 +312,23 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <div>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-600">
-                {curso?.nome || 'Curso'}
-              </span>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-800">
-                {disciplina.nome}
-              </h1>
+            <div className="flex items-center gap-2">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-600">
+                  {curso?.nome || 'Curso'}
+                </span>
+                <h1 className="text-xl sm:text-2xl font-black text-slate-800">
+                  {disciplina.nome}
+                </h1>
+              </div>
+              <button
+                type="button"
+                onClick={handleExcluirDisciplina}
+                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition cursor-pointer"
+                title="Excluir Disciplina"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
             </div>
           </div>
 
@@ -324,27 +418,152 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
 
       {/* --- TAB 1: MATERIAIS --- */}
       {abaAtiva === 'materiais' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
-              Materiais de Estudo
-            </h2>
+        <div className="space-y-5">
+          {/* Top Bar: Title & Adicionar Material */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                <span>Materiais de Estudo</span>
+                <span className="px-2.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-xs font-extrabold">
+                  {materiais.length}
+                </span>
+              </h2>
+              <p className="text-slate-500 text-xs mt-0.5">
+                Organizados por categoria automaticamente
+              </p>
+            </div>
 
-            {/* "+ Adicionar Material" automatically associated to current discipline */}
             <button
               type="button"
               onClick={() => setModalMaterialAberto(true)}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-2xl transition shadow-md flex items-center justify-center gap-1.5 text-xs cursor-pointer"
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-2xl transition shadow-md flex items-center justify-center gap-1.5 text-xs cursor-pointer shrink-0"
             >
               <Plus className="w-4 h-4" />
               <span>Adicionar Material</span>
             </button>
           </div>
 
+          {/* Category Filter Pills / Selector */}
+          <div className="space-y-3 bg-white p-3 sm:p-4 rounded-3xl border border-slate-200/90 shadow-sm">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-100">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Categorias de Conteúdo
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 font-medium hidden sm:inline">Ordenar:</span>
+                <select
+                  value={ordenacao}
+                  onChange={(e) => setOrdenacao(e.target.value as any)}
+                  className="text-xs font-semibold bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1 text-slate-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                >
+                  <option value="recentes">Mais recentes primeiro</option>
+                  <option value="antigos">Mais antigos primeiro</option>
+                  <option value="az">A - Z (Título)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Pill Bar */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {/* TODAS button */}
+              <button
+                type="button"
+                onClick={() => setCategoriaFiltro('todas')}
+                className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                  categoriaFiltro === 'todas'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <span>Todos</span>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                    categoriaFiltro === 'todas'
+                      ? 'bg-white/20 text-white'
+                      : 'bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {contadores.todas}
+                </span>
+              </button>
+
+              {/* Category-specific buttons */}
+              {(['documentos', 'videos', 'audios', 'fotografias', 'links'] as CategoriaMaterial[]).map(
+                (catKey) => {
+                  const conf = CATEGORIAS_CONFIG[catKey];
+                  const qtd = contadores[catKey] || 0;
+                  const eAtivo = categoriaFiltro === catKey;
+
+                  return (
+                    <button
+                      key={catKey}
+                      type="button"
+                      onClick={() => setCategoriaFiltro(catKey)}
+                      className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 border cursor-pointer ${
+                        eAtivo
+                          ? `${conf.corBadge} border-transparent shadow-md`
+                          : `${conf.corBg} ${conf.corTexto} ${conf.corBorda}`
+                      }`}
+                    >
+                      <span className="text-sm">{conf.icone}</span>
+                      <span>{conf.nome}</span>
+                      <span
+                        className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                          eAtivo ? 'bg-white/20 text-white' : 'bg-white/80 text-slate-800'
+                        }`}
+                      >
+                        {qtd}
+                      </span>
+                    </button>
+                  );
+                }
+              )}
+
+              {/* OUTROS button (if any item exists in Outros or if active) */}
+              {(contadores.outros > 0 || categoriaFiltro === 'outros') && (
+                <button
+                  type="button"
+                  onClick={() => setCategoriaFiltro('outros')}
+                  className={`px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 border cursor-pointer ${
+                    categoriaFiltro === 'outros'
+                      ? 'bg-slate-700 text-white shadow-md'
+                      : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>📦</span>
+                  <span>Outros</span>
+                  <span className="px-1.5 py-0.2 bg-white/30 rounded-full text-[10px] font-extrabold">
+                    {contadores.outros}
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Active Category Header Banner if filtered */}
+          {categoriaFiltro !== 'todas' && (
+            <div className="flex items-center justify-between p-3 bg-indigo-50/80 border border-indigo-200/80 rounded-2xl text-xs text-indigo-900">
+              <div className="flex items-center gap-2">
+                <span className="text-base">{CATEGORIAS_CONFIG[categoriaFiltro].icone}</span>
+                <span className="font-bold">
+                  Exibindo apenas {CATEGORIAS_CONFIG[categoriaFiltro].nome} ({materiaisFiltrados.length})
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCategoriaFiltro('todas')}
+                className="text-indigo-700 hover:text-indigo-900 font-bold underline cursor-pointer text-xs"
+              >
+                Ver todos os materiais
+              </button>
+            </div>
+          )}
+
+          {/* Content Area */}
           {materiais.length === 0 ? (
             <div className="bg-white p-8 rounded-3xl border border-dashed border-slate-200 text-center space-y-3">
               <p className="text-slate-500 text-xs">
-                Ainda não há materiais nesta disciplina. Adicione PDFs, fotografias, áudios ou links.
+                Ainda não há materiais nesta disciplina. Adicione PDFs, fotografias, áudios, vídeos ou links.
               </p>
               <button
                 type="button"
@@ -355,29 +574,50 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
                 <span>Adicionar Material</span>
               </button>
             </div>
+          ) : materiaisFiltrados.length === 0 ? (
+            <div className="bg-white p-8 rounded-3xl border border-slate-200 text-center space-y-2">
+              <p className="text-slate-600 font-bold text-xs">Nenhum material encontrado</p>
+              <p className="text-slate-400 text-xs">
+                {busca
+                  ? `Nenhum resultado para "${busca}" na categoria selecionada.`
+                  : 'Esta categoria ainda não contém nenhum material.'}
+              </p>
+              {categoriaFiltro !== 'todas' && (
+                <button
+                  type="button"
+                  onClick={() => setCategoriaFiltro('todas')}
+                  className="mt-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer"
+                >
+                  Ver todas as categorias
+                </button>
+              )}
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {materiais
-                .filter((m) => m.titulo.toLowerCase().includes(busca.toLowerCase()))
-                .map((m) => (
+              {materiaisFiltrados.map((m) => {
+                const cat = getCategoriaMaterial(m);
+                const conf = CATEGORIAS_CONFIG[cat];
+                const veioModoAula = isModoAulaMaterial(m);
+
+                return (
                   <div
                     key={m.id}
                     onClick={() => setMaterialSelecionado(m)}
                     className="bg-white p-4 rounded-3xl border border-slate-200/90 shadow-sm space-y-3 relative group hover:border-indigo-300 hover:shadow-md transition cursor-pointer flex flex-col justify-between"
                   >
                     <div className="space-y-3">
+                      {/* Card Header */}
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2.5">
-                          <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl shrink-0 group-hover:bg-indigo-600 group-hover:text-white transition">
-                            {m.tipo === 'fotografia' && <Camera className="w-5 h-5" />}
-                            {m.tipo === 'audio' && <Mic className="w-5 h-5" />}
-                            {m.tipo === 'video' && <Video className="w-5 h-5" />}
-                            {m.tipo === 'link' && <ExternalLink className="w-5 h-5" />}
-                            {m.tipo === 'documento' && <FileText className="w-5 h-5" />}
-                            {m.tipo === 'texto' && <FileText className="w-5 h-5" />}
+                        <div className="flex items-start gap-2.5">
+                          {/* Icon Container with category color */}
+                          <div
+                            className={`p-2.5 rounded-2xl shrink-0 flex items-center justify-center ${conf.corBg} ${conf.corTexto} border ${conf.corBorda}`}
+                          >
+                            <span className="text-base">{conf.icone}</span>
                           </div>
+
                           <div>
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
                               <h3 className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition">
                                 {m.titulo}
                               </h3>
@@ -385,9 +625,19 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
                                 <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500 shrink-0" />
                               )}
                             </div>
-                            <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                              {m.tipo} • {new Date(m.dataCriacao).toLocaleDateString()}
-                            </span>
+
+                            {/* Category & Date Subtitle + Modo Aula Indicator */}
+                            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                                {conf.nome} • {new Date(m.dataCriacao).toLocaleDateString()}
+                              </span>
+
+                              {veioModoAula && (
+                                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-300/80 rounded-md text-[9px] font-extrabold inline-flex items-center gap-0.5">
+                                  <span>🎙️ Modo Aula</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -405,32 +655,41 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
                         </button>
                       </div>
 
-                      {/* Preview / Content Snippet */}
-                      {m.tipo === 'texto' && (
-                        <p className="text-slate-600 text-xs bg-slate-50 p-3 rounded-2xl line-clamp-2">
-                          {m.conteudo}
-                        </p>
-                      )}
-
-                      {m.tipo === 'link' && (
-                        <p className="text-xs font-semibold text-indigo-600 underline flex items-center gap-1 truncate bg-slate-50 p-2 rounded-xl">
-                          <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate">{m.conteudo}</span>
-                        </p>
-                      )}
-
-                      {m.tipo === 'documento' && (
+                      {/* Preview / Content Snippet based on Category */}
+                      {cat === 'documentos' && (
                         <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between text-xs text-slate-700">
-                          <span className="truncate font-semibold max-w-[180px]">
-                            {m.nomeArquivo || 'Documento PDF/DOC'}
-                          </span>
-                          <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-md">
-                            Ver Ficheiro
+                          <div className="truncate max-w-[200px]">
+                            <p className="truncate font-semibold text-slate-800">
+                              {m.nomeArquivo || m.titulo}
+                            </p>
+                            {m.tamanho && (
+                              <p className="text-[10px] text-slate-400">
+                                {(m.tamanho / 1024).toFixed(0)} KB
+                              </p>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-blue-700 font-extrabold bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-xl">
+                            Documento
                           </span>
                         </div>
                       )}
 
-                      {m.tipo === 'fotografia' && m.conteudo && (
+                      {cat === 'links' && (
+                        <div className="p-2.5 bg-amber-50/60 rounded-2xl border border-amber-200/60 text-xs">
+                          <a
+                            href={m.conteudo}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="font-bold text-amber-800 hover:underline flex items-center gap-1.5 truncate"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                            <span className="truncate">{m.conteudo}</span>
+                          </a>
+                        </div>
+                      )}
+
+                      {cat === 'fotografias' && m.conteudo && (
                         <div className="rounded-2xl overflow-hidden border border-slate-200 h-32 bg-slate-100">
                           <img
                             src={m.conteudo}
@@ -440,31 +699,38 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
                         </div>
                       )}
 
-                      {m.tipo === 'audio' && m.conteudo && (
+                      {cat === 'audios' && m.conteudo && (
                         <div
                           onClick={(e) => e.stopPropagation()}
-                          className="pt-1"
+                          className="pt-1 bg-rose-50/50 p-2 rounded-2xl border border-rose-100"
                         >
                           <audio src={m.conteudo} controls className="w-full h-8" />
                         </div>
                       )}
 
-                      {m.tipo === 'video' && m.conteudo && (
+                      {cat === 'videos' && m.conteudo && (
                         <div className="rounded-2xl overflow-hidden border border-slate-200 bg-black max-h-36 flex items-center justify-center">
                           <video src={m.conteudo} className="w-full max-h-36 object-cover" />
                         </div>
                       )}
+
+                      {cat === 'outros' && (
+                        <p className="text-slate-600 text-xs bg-slate-50 p-2.5 rounded-2xl line-clamp-2">
+                          {m.conteudo.slice(0, 100)}
+                        </p>
+                      )}
                     </div>
 
                     {/* Quick Open Action Button */}
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs mt-2">
                       <span className="text-indigo-600 font-bold group-hover:translate-x-1 transition inline-flex items-center gap-1">
                         <Eye className="w-3.5 h-3.5" />
-                        <span>Abrir Material</span>
+                        <span>Visualizar {conf.nome}</span>
                       </span>
                     </div>
                   </div>
-                ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -910,6 +1176,61 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
           onAtualizado={recarregar}
         />
       )}
+
+      {/* Confirm Delete Apontamento */}
+      <ConfirmModal
+        isOpen={!!apontamentoParaExcluirId}
+        titulo="Excluir Apontamento"
+        mensagem="Mover este apontamento para a Lixeira?"
+        textoConfirmar="Enviar para a Lixeira"
+        textoCancelar="Cancelar"
+        onConfirmar={handleConfirmarExcluirApontamento}
+        onCancelar={() => setApontamentoParaExcluirId(null)}
+      />
+
+      {/* Confirm Delete Informacao */}
+      <ConfirmModal
+        isOpen={!!infoParaExcluirId}
+        titulo="Excluir Informação Important"
+        mensagem="Enviar esta informação importante para a Lixeira?"
+        textoConfirmar="Enviar para a Lixeira"
+        textoCancelar="Cancelar"
+        onConfirmar={handleConfirmarExcluirInformacao}
+        onCancelar={() => setInfoParaExcluirId(null)}
+      />
+
+      {/* Confirm Delete Disciplina */}
+      <ConfirmModal
+        isOpen={confirmarExcluirDisciplina}
+        titulo="Excluir Disciplina"
+        mensagem="Enviar esta disciplina para a Lixeira?"
+        textoConfirmar="Enviar para a Lixeira"
+        textoCancelar="Cancelar"
+        onConfirmar={handleConfirmarExcluirDisciplinaAcao}
+        onCancelar={() => setConfirmarExcluirDisciplina(false)}
+      />
+
+      {/* Confirm Delete Material */}
+      <ConfirmModal
+        isOpen={!!materialParaExcluirId}
+        titulo="Excluir Material"
+        mensagem="Mover este material para a Lixeira?"
+        textoConfirmar="Enviar para a Lixeira"
+        textoCancelar="Cancelar"
+        onConfirmar={handleConfirmarExcluirMaterial}
+        onCancelar={() => setMaterialParaExcluirId(null)}
+      />
+
+      {/* Confirm Delete Session */}
+      <ConfirmModal
+        isOpen={!!sessaoParaExcluirId}
+        titulo="Excluir Sessão de Aula"
+        mensagem="Mover o registo desta aula para a Lixeira?"
+        textoConfirmar="Enviar para a Lixeira"
+        textoCancelar="Cancelar"
+        onConfirmar={handleConfirmarExcluirSessao}
+        onCancelar={() => setSessaoParaExcluirId(null)}
+      />
     </div>
   );
 };

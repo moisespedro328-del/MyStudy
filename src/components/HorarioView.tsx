@@ -17,6 +17,7 @@ import {
   enviarHorarioParaLixeira,
 } from '../lib/storage';
 import { HorarioAula, Disciplina, Curso, VisualizacaoAtual } from '../types';
+import { ConfirmModal } from './ConfirmModal';
 
 interface HorarioViewProps {
   onNavegar: (view: VisualizacaoAtual) => void;
@@ -49,6 +50,8 @@ export const HorarioView: React.FC<HorarioViewProps> = ({ onNavegar }) => {
   const [horaFim, setHoraFim] = useState('10:30');
   const [sala, setSala] = useState('');
 
+  const [horarioParaExcluirId, setHorarioParaExcluirId] = useState<string | null>(null);
+
   const recarregar = () => {
     setHorarios(getHorario());
     const dList = getDisciplinas();
@@ -80,8 +83,13 @@ export const HorarioView: React.FC<HorarioViewProps> = ({ onNavegar }) => {
 
   const handleExcluir = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Mover esta aula do horário para a Lixeira?')) {
-      enviarHorarioParaLixeira(id);
+    setHorarioParaExcluirId(id);
+  };
+
+  const handleConfirmarExcluirHorario = () => {
+    if (horarioParaExcluirId) {
+      enviarHorarioParaLixeira(horarioParaExcluirId);
+      setHorarioParaExcluirId(null);
       recarregar();
     }
   };
@@ -338,6 +346,16 @@ export const HorarioView: React.FC<HorarioViewProps> = ({ onNavegar }) => {
           </div>
         </div>
       )}
+      {/* Confirm Delete Schedule Modal */}
+      <ConfirmModal
+        isOpen={!!horarioParaExcluirId}
+        titulo="Excluir Aula do Horário"
+        mensagem="Mover esta aula do horário para a Lixeira?"
+        textoConfirmar="Enviar para a Lixeira"
+        textoCancelar="Cancelar"
+        onConfirmar={handleConfirmarExcluirHorario}
+        onCancelar={() => setHorarioParaExcluirId(null)}
+      />
     </div>
   );
 };

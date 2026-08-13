@@ -26,6 +26,7 @@ export interface Disciplina {
 export interface MaterialItem {
   id: string;
   disciplinaId: string;
+  sessaoId?: string;
   titulo: string;
   tipo: TipoMaterial;
   conteudo: string; // URL, Base64, Blob key or Text content
@@ -34,11 +35,13 @@ export interface MaterialItem {
   tamanho?: number;
   dataCriacao: string;
   eImportante?: boolean;
+  origemModoAula?: boolean;
 }
 
 export interface Apontamento {
   id: string;
   disciplinaId: string;
+  sessaoId?: string;
   titulo: string;
   texto: string;
   imagens: string[]; // Base64 or Blob URLs
@@ -51,6 +54,7 @@ export interface Apontamento {
 export interface InformacaoImportante {
   id: string;
   disciplinaId: string;
+  sessaoId?: string;
   texto: string;
   origem: string; // e.g. "Contabilidade Geral - Aula 03 - Pág 12"
   dataCriacao: string;

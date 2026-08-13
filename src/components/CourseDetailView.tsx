@@ -16,8 +16,10 @@ import {
   getDisciplinasPorCurso,
   saveDisciplina,
   enviarDisciplinaParaLixeira,
+  enviarCursoParaLixeira,
 } from '../lib/storage';
 import { Curso, Disciplina, VisualizacaoAtual } from '../types';
+import { ConfirmModal } from './ConfirmModal';
 
 interface CourseDetailViewProps {
   cursoId: string;
@@ -32,6 +34,9 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
   const [disciplinas, setDisciplinas] = useState<Disciplina[]>([]);
   const [modalAberto, setModalAberto] = useState(false);
   const [disciplinaEmEdicao, setDisciplinaEmEdicao] = useState<Disciplina | null>(null);
+
+  const [disciplinaParaExcluirId, setDisciplinaParaExcluirId] = useState<string | null>(null);
+  const [confirmarExcluirCurso, setConfirmarExcluirCurso] = useState(false);
 
   // Form states for Disciplina
   const [nome, setNome] = useState('');
@@ -73,13 +78,26 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
 
   const handleExcluirDisciplina = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (
-      window.confirm(
-        'Mover esta disciplina para a Lixeira? Os seus materiais e anotações serão guardados com ela.'
-      )
-    ) {
-      enviarDisciplinaParaLixeira(id);
+    setDisciplinaParaExcluirId(id);
+  };
+
+  const handleConfirmarExcluirDisciplina = () => {
+    if (disciplinaParaExcluirId) {
+      enviarDisciplinaParaLixeira(disciplinaParaExcluirId);
+      setDisciplinaParaExcluirId(null);
       recarregar();
+    }
+  };
+
+  const handleExcluirCurso = () => {
+    setConfirmarExcluirCurso(true);
+  };
+
+  const handleConfirmarExcluirCursoAcao = () => {
+    if (curso) {
+      enviarCursoParaLixeira(curso.id);
+      setConfirmarExcluirCurso(false);
+      onNavegar({ tipo: 'cursos' });
     }
   };
 
@@ -125,11 +143,21 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
           <ArrowLeft className="w-5 h-5" />
         </button>
 
-        <div className="flex-1">
-          <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600">
-            Curso
-          </span>
-          <h1 className="text-2xl font-extrabold text-slate-800">{curso.nome}</h1>
+        <div className="flex-1 flex items-center justify-between gap-2">
+          <div>
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-indigo-600">
+              Curso
+            </span>
+            <h1 className="text-2xl font-extrabold text-slate-800">{curso.nome}</h1>
+          </div>
+          <button
+            type="button"
+            onClick={handleExcluirCurso}
+            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition cursor-pointer"
+            title="Excluir Curso"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Exclusively "+ Adicionar Disciplina" button inside a Course page */}
@@ -329,6 +357,27 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
           </div>
         </div>
       )}
+      {/* Confirm Delete Discipline Modal */}
+      <ConfirmModal
+        isOpen={!!disciplinaParaExcluirId}
+        titulo="Excluir Disciplina"
+        mensagem="Enviar esta disciplina para a Lixeira?"
+        textoConfirmar="Enviar para a Lixeira"
+        textoCancelar="Cancelar"
+        onConfirmar={handleConfirmarExcluirDisciplina}
+        onCancelar={() => setDisciplinaParaExcluirId(null)}
+      />
+
+      {/* Confirm Delete Course Modal */}
+      <ConfirmModal
+        isOpen={confirmarExcluirCurso}
+        titulo="Excluir Curso"
+        mensagem="Enviar este curso para a Lixeira?"
+        textoConfirmar="Enviar para a Lixeira"
+        textoCancelar="Cancelar"
+        onConfirmar={handleConfirmarExcluirCursoAcao}
+        onCancelar={() => setConfirmarExcluirCurso(false)}
+      />
     </div>
   );
 };

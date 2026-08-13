@@ -13,9 +13,22 @@ import {
   Layers,
   BookOpen,
   Check,
+  Trash2,
 } from 'lucide-react';
 import { SessaoAula, Disciplina, Curso } from '../types';
-import { getDisciplinas, getCursos, atualizarDisciplinaSessao } from '../lib/storage';
+import {
+  getDisciplinas,
+  getCursos,
+  atualizarDisciplinaSessao,
+  enviarSessaoParaLixeira,
+  enviarMaterialParaLixeira,
+  enviarApontamentoParaLixeira,
+  enviarInformacaoParaLixeira,
+  getMateriais,
+  getApontamentos,
+  getInformacoesImportantes,
+} from '../lib/storage';
+import { ConfirmModal } from './ConfirmModal';
 
 interface SessionDetailModalProps {
   sessao: SessaoAula;
@@ -30,6 +43,14 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
 }) => {
   const [modalAlterarDisciplina, setModalAlterarDisciplina] = useState(false);
   const [disciplinaAtualId, setDisciplinaAtualId] = useState(sessao.disciplinaId);
+
+  // Local state for interactive deletion inside modal
+  const [informacoesState, setInformacoesState] = useState(sessao.informacoesImportantes || []);
+  const [notasState, setNotasState] = useState(sessao.notas || []);
+  const [materiaisState, setMateriaisState] = useState(sessao.materiais || []);
+  const [audiosState, setAudiosState] = useState(sessao.audios || []);
+  const [fotosState, setFotosState] = useState(sessao.fotografias || []);
+  const [videosState, setVideosState] = useState(sessao.videos || []);
 
   const disciplinas = getDisciplinas();
   const cursos = getCursos();
@@ -46,6 +67,8 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
     disciplinaAtualId
   );
 
+  const [confirmarExcluirSessao, setConfirmarExcluirSessao] = useState(false);
+
   const disciplinasDoCurso = disciplinas.filter(
     (d) => d.cursoId === cursoSelecionadoId
   );
@@ -55,6 +78,69 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
     atualizarDisciplinaSessao(sessao.id, novaDisciplinaId);
     setDisciplinaAtualId(novaDisciplinaId);
     setModalAlterarDisciplina(false);
+    if (onAtualizado) onAtualizado();
+  };
+
+  const handleExcluirTodaSessao = () => {
+    setConfirmarExcluirSessao(true);
+  };
+
+  const handleConfirmarExcluirSessaoAcao = () => {
+    enviarSessaoParaLixeira(sessao.id);
+    setConfirmarExcluirSessao(false);
+    if (onAtualizado) onAtualizado();
+    onFechar();
+  };
+
+  const handleExcluirInfo = (infId: string) => {
+    enviarInformacaoParaLixeira(infId);
+    setInformacoesState((prev) => prev.filter((i) => i.id !== infId));
+    if (onAtualizado) onAtualizado();
+  };
+
+  const handleExcluirNota = (notaId: string) => {
+    const todosAp = getApontamentos();
+    const ap = todosAp.find((a) => a.id === notaId || a.sessaoId === sessao.id);
+    if (ap) {
+      enviarApontamentoParaLixeira(ap.id);
+    }
+    setNotasState((prev) => prev.filter((n) => n.id !== notaId));
+    if (onAtualizado) onAtualizado();
+  };
+
+  const handleExcluirMaterial = (matId: string) => {
+    enviarMaterialParaLixeira(matId);
+    setMateriaisState((prev) => prev.filter((m) => m.id !== matId));
+    if (onAtualizado) onAtualizado();
+  };
+
+  const handleExcluirAudio = (audioId: string, url: string) => {
+    const mats = getMateriais();
+    const mat = mats.find((m) => m.conteudo === url || m.id === audioId);
+    if (mat) {
+      enviarMaterialParaLixeira(mat.id);
+    }
+    setAudiosState((prev) => prev.filter((a) => a.id !== audioId));
+    if (onAtualizado) onAtualizado();
+  };
+
+  const handleExcluirFoto = (fotoId: string, url: string) => {
+    const mats = getMateriais();
+    const mat = mats.find((m) => m.conteudo === url || m.id === fotoId);
+    if (mat) {
+      enviarMaterialParaLixeira(mat.id);
+    }
+    setFotosState((prev) => prev.filter((f) => f.id !== fotoId));
+    if (onAtualizado) onAtualizado();
+  };
+
+  const handleExcluirVideo = (videoId: string, url: string) => {
+    const mats = getMateriais();
+    const mat = mats.find((m) => m.conteudo === url || m.id === videoId);
+    if (mat) {
+      enviarMaterialParaLixeira(mat.id);
+    }
+    setVideosState((prev) => prev.filter((v) => v.id !== videoId));
     if (onAtualizado) onAtualizado();
   };
 
@@ -77,13 +163,24 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
             <h2 className="text-xl font-black text-white">{sessao.titulo}</h2>
           </div>
 
-          <button
-            type="button"
-            onClick={onFechar}
-            className="text-slate-300 hover:text-white p-1 rounded-xl transition cursor-pointer"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExcluirTodaSessao}
+              title="Enviar esta sessão para a Lixeira"
+              className="p-2 bg-red-500/20 hover:bg-red-500 text-red-200 hover:text-white rounded-xl transition cursor-pointer flex items-center gap-1 text-xs font-bold"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Enviar para Lixeira</span>
+            </button>
+            <button
+              type="button"
+              onClick={onFechar}
+              className="text-slate-300 hover:text-white p-1 rounded-xl transition cursor-pointer"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         {/* Subheader - Current Discipline & Change Discipline Button */}
@@ -109,19 +206,27 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
         {/* Content Body */}
         <div className="p-6 space-y-6 overflow-y-auto flex-1 bg-slate-50">
           {/* Key Info Clips */}
-          {sessao.informacoesImportantes.length > 0 && (
+          {informacoesState.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5">
                 <Bookmark className="w-4 h-4 fill-amber-500" />
-                <span>Informações Importantes Guardadas ({sessao.informacoesImportantes.length})</span>
+                <span>Informações Importantes Guardadas ({informacoesState.length})</span>
               </h3>
               <div className="space-y-2">
-                {sessao.informacoesImportantes.map((inf) => (
+                {informacoesState.map((inf) => (
                   <div
                     key={inf.id}
-                    className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-slate-800 font-semibold text-xs leading-relaxed"
+                    className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-slate-800 font-semibold text-xs leading-relaxed flex items-start justify-between gap-2"
                   >
-                    "{inf.texto}"
+                    <span>"{inf.texto}"</span>
+                    <button
+                      type="button"
+                      onClick={() => handleExcluirInfo(inf.id)}
+                      className="text-amber-800 hover:text-red-600 p-1 shrink-0"
+                      title="Enviar para Lixeira"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -129,22 +234,32 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
           )}
 
           {/* Quick Notes */}
-          {sessao.notas.length > 0 && (
+          {notasState.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-indigo-600" />
-                <span>Notas Rápidas ({sessao.notas.length})</span>
+                <span>Notas Rápidas ({notasState.length})</span>
               </h3>
               <div className="grid gap-2">
-                {sessao.notas.map((n) => (
+                {notasState.map((n) => (
                   <div
                     key={n.id}
-                    className="p-3 bg-white border border-slate-200 rounded-2xl text-xs text-slate-700 leading-relaxed shadow-sm"
+                    className="p-3 bg-white border border-slate-200 rounded-2xl text-xs text-slate-700 leading-relaxed shadow-sm flex items-start justify-between gap-2"
                   >
-                    <span className="text-[10px] text-slate-400 block mb-1">
-                      {n.timestamp}
-                    </span>
-                    {n.texto}
+                    <div>
+                      <span className="text-[10px] text-slate-400 block mb-1">
+                        {n.timestamp}
+                      </span>
+                      {n.texto}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleExcluirNota(n.id)}
+                      className="text-slate-400 hover:text-red-600 p-1 shrink-0"
+                      title="Enviar para Lixeira"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -152,14 +267,14 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
           )}
 
           {/* Materials Attached */}
-          {sessao.materiais && sessao.materiais.length > 0 && (
+          {materiaisState.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <Folder className="w-4 h-4 text-emerald-600" />
-                <span>Materiais Anexados ({sessao.materiais.length})</span>
+                <span>Materiais Anexados ({materiaisState.length})</span>
               </h3>
               <div className="grid gap-2">
-                {sessao.materiais.map((m) => (
+                {materiaisState.map((m) => (
                   <div
                     key={m.id}
                     className="p-3.5 bg-white border border-slate-200 rounded-2xl text-xs flex items-center justify-between gap-3 shadow-sm"
@@ -168,9 +283,19 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
                       <Folder className="w-4 h-4 text-emerald-600 shrink-0" />
                       <span className="font-bold text-slate-800 truncate">{m.titulo}</span>
                     </div>
-                    <span className="text-[10px] uppercase font-black px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md shrink-0">
-                      {m.tipo}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] uppercase font-black px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md shrink-0">
+                        {m.tipo}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleExcluirMaterial(m.id)}
+                        className="text-slate-400 hover:text-red-600 p-1 shrink-0"
+                        title="Enviar para Lixeira"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -178,21 +303,31 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
           )}
 
           {/* Audio Recordings */}
-          {sessao.audios.length > 0 && (
+          {audiosState.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <Mic className="w-4 h-4 text-indigo-600" />
-                <span>Gravações de Áudio ({sessao.audios.length})</span>
+                <span>Gravações de Áudio ({audiosState.length})</span>
               </h3>
               <div className="space-y-2">
-                {sessao.audios.map((a) => (
+                {audiosState.map((a) => (
                   <div
                     key={a.id}
                     className="p-3 bg-white border border-slate-200 rounded-2xl space-y-2 shadow-sm"
                   >
-                    <span className="text-xs font-bold text-slate-800 block">
-                      {a.titulo || 'Gravação de Áudio'}
-                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 block">
+                        {a.titulo || 'Gravação de Áudio'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleExcluirAudio(a.id, a.url)}
+                        className="text-slate-400 hover:text-red-600 p-1 shrink-0"
+                        title="Enviar para Lixeira"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                     <audio src={a.url} controls className="w-full h-10" />
                   </div>
                 ))}
@@ -201,19 +336,27 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
           )}
 
           {/* Photos */}
-          {sessao.fotografias.length > 0 && (
+          {fotosState.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <Camera className="w-4 h-4 text-indigo-600" />
-                <span>Fotografias da Aula ({sessao.fotografias.length})</span>
+                <span>Fotografias da Aula ({fotosState.length})</span>
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {sessao.fotografias.map((f) => (
+                {fotosState.map((f) => (
                   <div
                     key={f.id}
-                    className="rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm"
+                    className="rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm relative group"
                   >
                     <img src={f.url} alt={f.titulo} className="w-full h-32 object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => handleExcluirFoto(f.id, f.url)}
+                      className="absolute top-2 right-2 p-1.5 bg-red-600/90 text-white rounded-lg shadow-md hover:bg-red-700 transition opacity-90"
+                      title="Enviar para Lixeira"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -221,19 +364,27 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
           )}
 
           {/* Videos */}
-          {sessao.videos.length > 0 && (
+          {videosState.length > 0 && (
             <div className="space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                 <Video className="w-4 h-4 text-indigo-600" />
-                <span>Vídeos Gravados ({sessao.videos.length})</span>
+                <span>Vídeos Gravados ({videosState.length})</span>
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {sessao.videos.map((v) => (
+                {videosState.map((v) => (
                   <div
                     key={v.id}
-                    className="rounded-2xl overflow-hidden border border-slate-200 bg-black"
+                    className="rounded-2xl overflow-hidden border border-slate-200 bg-black relative"
                   >
                     <video src={v.url} controls className="w-full max-h-48" />
+                    <button
+                      type="button"
+                      onClick={() => handleExcluirVideo(v.id, v.url)}
+                      className="absolute top-2 right-2 p-1.5 bg-red-600/90 text-white rounded-lg shadow-md hover:bg-red-700 transition z-10"
+                      title="Enviar para Lixeira"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -345,6 +496,17 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
           </div>
         </div>
       )}
+
+      {/* Confirm Delete Session Modal */}
+      <ConfirmModal
+        isOpen={confirmarExcluirSessao}
+        titulo="Excluir Sessão de Aula"
+        mensagem="Tem certeza de que deseja enviar esta sessão e todos os seus conteúdos capturados para a Lixeira?"
+        textoConfirmar="Enviar para a Lixeira"
+        textoCancelar="Cancelar"
+        onConfirmar={handleConfirmarExcluirSessaoAcao}
+        onCancelar={() => setConfirmarExcluirSessao(false)}
+      />
     </div>
   );
 };

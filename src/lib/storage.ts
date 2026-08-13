@@ -310,7 +310,8 @@ export function saveApontamento(
   imagens: string[] = [],
   links: string[] = [],
   eImportante = false,
-  idExistente?: string
+  idExistente?: string,
+  sessaoId?: string
 ): Apontamento {
   const apontamentos = getApontamentos();
   const dataAtual = new Date().toISOString();
@@ -325,6 +326,7 @@ export function saveApontamento(
         imagens,
         links,
         eImportante,
+        sessaoId: sessaoId || apontamentos[idx].sessaoId,
         dataAtualizacao: dataAtual,
       };
       localStorage.setItem(STORAGE_KEYS.APONTAMENTOS, JSON.stringify(apontamentos));
@@ -336,6 +338,7 @@ export function saveApontamento(
   const novo: Apontamento = {
     id: generateId(),
     disciplinaId,
+    sessaoId,
     titulo: titulo.trim(),
     texto,
     imagens,
@@ -354,7 +357,8 @@ export function saveApontamento(
     saveInformacaoImportante(
       disciplinaId,
       `${titulo}: ${texto.slice(0, 120)}${texto.length > 120 ? '...' : ''}`,
-      `Apontamento: ${disc?.nome || 'Disciplina'}`
+      `Apontamento: ${disc?.nome || 'Disciplina'}`,
+      sessaoId
     );
   }
 
@@ -390,12 +394,32 @@ export function getInformacoesPorDisciplina(disciplinaId: string): InformacaoImp
 export function saveInformacaoImportante(
   disciplinaId: string,
   texto: string,
-  origem: string
+  origem: string,
+  sessaoId?: string,
+  idExistente?: string
 ): InformacaoImportante {
   const informacoes = getInformacoesImportantes();
+
+  if (idExistente) {
+    const idx = informacoes.findIndex((i) => i.id === idExistente);
+    if (idx !== -1) {
+      informacoes[idx] = {
+        ...informacoes[idx],
+        disciplinaId,
+        sessaoId: sessaoId || informacoes[idx].sessaoId,
+        texto: texto.trim(),
+        origem: origem.trim(),
+      };
+      localStorage.setItem(STORAGE_KEYS.INFORMACOES, JSON.stringify(informacoes));
+      notifyStorageChange();
+      return informacoes[idx];
+    }
+  }
+
   const nova: InformacaoImportante = {
-    id: generateId(),
+    id: idExistente || generateId(),
     disciplinaId,
+    sessaoId,
     texto: texto.trim(),
     origem: origem.trim(),
     dataCriacao: new Date().toISOString(),
@@ -445,7 +469,13 @@ export function saveSessaoAula(sessao: Omit<SessaoAula, 'id'>): SessaoAula {
   // Save captured items into corresponding materials/notes/key info of the subject
   if (sessao.disciplinaId) {
     sessao.informacoesImportantes.forEach((inf) => {
-      saveInformacaoImportante(sessao.disciplinaId, inf.texto, inf.origem || `Aula de ${new Date(sessao.dataInicio).toLocaleDateString()}`);
+      saveInformacaoImportante(
+        sessao.disciplinaId,
+        inf.texto,
+        inf.origem || `Aula de ${new Date(sessao.dataInicio).toLocaleDateString()}`,
+        novaSessao.id,
+        inf.id
+      );
     });
 
     sessao.notas.forEach((nota) => {
@@ -455,36 +485,55 @@ export function saveSessaoAula(sessao: Omit<SessaoAula, 'id'>): SessaoAula {
         nota.texto,
         [],
         [],
-        false
+        false,
+        undefined,
+        novaSessao.id
       );
     });
 
     sessao.fotografias.forEach((foto, idx) => {
       saveMaterial({
         disciplinaId: sessao.disciplinaId,
+        sessaoId: novaSessao.id,
         titulo: foto.titulo || `Fotografia ${idx + 1} - Aula`,
         tipo: 'fotografia',
         conteudo: foto.url,
+        origemModoAula: true,
       });
     });
 
     sessao.audios.forEach((audio, idx) => {
       saveMaterial({
         disciplinaId: sessao.disciplinaId,
+        sessaoId: novaSessao.id,
         titulo: audio.titulo || `Áudio ${idx + 1} - Aula`,
         tipo: 'audio',
         conteudo: audio.url,
+        origemModoAula: true,
       });
     });
 
     sessao.videos.forEach((video, idx) => {
       saveMaterial({
         disciplinaId: sessao.disciplinaId,
+        sessaoId: novaSessao.id,
         titulo: video.titulo || `Vídeo ${idx + 1} - Aula`,
         tipo: 'video',
         conteudo: video.url,
+        origemModoAula: true,
       });
     });
+
+    if (sessao.materiais) {
+      sessao.materiais.forEach((mat) => {
+        saveMaterial({
+          ...mat,
+          disciplinaId: sessao.disciplinaId,
+          sessaoId: novaSessao.id,
+          origemModoAula: true,
+        });
+      });
+    }
   }
 
   notifyStorageChange();
@@ -668,39 +717,58 @@ export function enviarCursoParaLixeira(cursoId: string): void {
   const curso = cursos.find((c) => c.id === cursoId);
   if (!curso) return;
 
+  // Cascade step 1: Collect discipline IDs belonging to the course
   const disciplinas = getDisciplinasPorCurso(cursoId);
-  const discIds = disciplinas.map((d) => d.id);
+  const discIds = new Set(disciplinas.map((d) => d.id));
 
-  const materiais = getMateriais().filter((m) => discIds.includes(m.disciplinaId));
-  const apontamentos = getApontamentos().filter((a) => discIds.includes(a.disciplinaId));
-  const informacoes = getInformacoesImportantes().filter((i) => discIds.includes(i.disciplinaId));
-  const sessoes = getSessoesAula().filter((s) => discIds.includes(s.disciplinaId));
-  const horarios = getHorario().filter((h) => discIds.includes(h.disciplinaId));
+  // Cascade step 2: Collect session IDs belonging to these disciplines
+  const sessoes = getSessoesAula().filter((s) => discIds.has(s.disciplinaId));
+  const sessaoIds = new Set(sessoes.map((s) => s.id));
 
+  // Cascade step 3: Collect materials, notes, key info, and schedules associated via discipline IDs or session IDs
+  const todosMateriais = getMateriais();
+  const materiais = todosMateriais.filter(
+    (m) => discIds.has(m.disciplinaId) || (m.sessaoId && sessaoIds.has(m.sessaoId))
+  );
+
+  const todosApontamentos = getApontamentos();
+  const apontamentos = todosApontamentos.filter(
+    (a) => discIds.has(a.disciplinaId) || (a.sessaoId && sessaoIds.has(a.sessaoId))
+  );
+
+  const todasInformacoes = getInformacoesImportantes();
+  const informacoes = todasInformacoes.filter(
+    (i) => discIds.has(i.disciplinaId) || (i.sessaoId && sessaoIds.has(i.sessaoId))
+  );
+
+  const todosHorarios = getHorario();
+  const horarios = todosHorarios.filter((h) => discIds.has(h.disciplinaId));
+
+  // Move items out of active collections without deleting them permanently
   localStorage.setItem(STORAGE_KEYS.CURSOS, JSON.stringify(cursos.filter((c) => c.id !== cursoId)));
   localStorage.setItem(
     STORAGE_KEYS.DISCIPLINAS,
-    JSON.stringify(getDisciplinas().filter((d) => d.cursoId !== cursoId))
+    JSON.stringify(getDisciplinas().filter((d) => d.cursoId !== cursoId && !discIds.has(d.id)))
   );
   localStorage.setItem(
     STORAGE_KEYS.MATERIAIS,
-    JSON.stringify(getMateriais().filter((m) => !discIds.includes(m.disciplinaId)))
+    JSON.stringify(todosMateriais.filter((m) => !discIds.has(m.disciplinaId) && (!m.sessaoId || !sessaoIds.has(m.sessaoId))))
   );
   localStorage.setItem(
     STORAGE_KEYS.APONTAMENTOS,
-    JSON.stringify(getApontamentos().filter((a) => !discIds.includes(a.disciplinaId)))
+    JSON.stringify(todosApontamentos.filter((a) => !discIds.has(a.disciplinaId) && (!a.sessaoId || !sessaoIds.has(a.sessaoId))))
   );
   localStorage.setItem(
     STORAGE_KEYS.INFORMACOES,
-    JSON.stringify(getInformacoesImportantes().filter((i) => !discIds.includes(i.disciplinaId)))
+    JSON.stringify(todasInformacoes.filter((i) => !discIds.has(i.disciplinaId) && (!i.sessaoId || !sessaoIds.has(i.sessaoId))))
   );
   localStorage.setItem(
     STORAGE_KEYS.SESSOES_AULA,
-    JSON.stringify(getSessoesAula().filter((s) => !discIds.includes(s.disciplinaId)))
+    JSON.stringify(todasSessoesFilter(discIds))
   );
   localStorage.setItem(
     STORAGE_KEYS.HORARIO,
-    JSON.stringify(getHorario().filter((h) => !discIds.includes(h.disciplinaId)))
+    JSON.stringify(todosHorarios.filter((h) => !discIds.has(h.disciplinaId)))
   );
 
   saveItemLixeira({
@@ -721,16 +789,35 @@ export function enviarCursoParaLixeira(cursoId: string): void {
   });
 }
 
+function todasSessoesFilter(discIds: Set<string>) {
+  return getSessoesAula().filter((s) => !discIds.has(s.disciplinaId));
+}
+
 export function enviarDisciplinaParaLixeira(disciplinaId: string): void {
   const disciplinas = getDisciplinas();
   const disc = disciplinas.find((d) => d.id === disciplinaId);
   if (!disc) return;
 
-  const materiais = getMateriaisPorDisciplina(disciplinaId);
-  const apontamentos = getApontamentosPorDisciplina(disciplinaId);
-  const informacoes = getInformacoesPorDisciplina(disciplinaId);
   const sessoes = getSessoesPorDisciplina(disciplinaId);
-  const horarios = getHorario().filter((h) => h.disciplinaId === disciplinaId);
+  const sessaoIds = new Set(sessoes.map((s) => s.id));
+
+  const todosMateriais = getMateriais();
+  const materiais = todosMateriais.filter(
+    (m) => m.disciplinaId === disciplinaId || (m.sessaoId && sessaoIds.has(m.sessaoId))
+  );
+
+  const todosApontamentos = getApontamentos();
+  const apontamentos = todosApontamentos.filter(
+    (a) => a.disciplinaId === disciplinaId || (a.sessaoId && sessaoIds.has(a.sessaoId))
+  );
+
+  const todasInformacoes = getInformacoesImportantes();
+  const informacoes = todasInformacoes.filter(
+    (i) => i.disciplinaId === disciplinaId || (i.sessaoId && sessaoIds.has(i.sessaoId))
+  );
+
+  const todosHorarios = getHorario();
+  const horarios = todosHorarios.filter((h) => h.disciplinaId === disciplinaId);
 
   localStorage.setItem(
     STORAGE_KEYS.DISCIPLINAS,
@@ -738,15 +825,15 @@ export function enviarDisciplinaParaLixeira(disciplinaId: string): void {
   );
   localStorage.setItem(
     STORAGE_KEYS.MATERIAIS,
-    JSON.stringify(getMateriais().filter((m) => m.disciplinaId !== disciplinaId))
+    JSON.stringify(todosMateriais.filter((m) => m.disciplinaId !== disciplinaId && (!m.sessaoId || !sessaoIds.has(m.sessaoId))))
   );
   localStorage.setItem(
     STORAGE_KEYS.APONTAMENTOS,
-    JSON.stringify(getApontamentos().filter((a) => a.disciplinaId !== disciplinaId))
+    JSON.stringify(todosApontamentos.filter((a) => a.disciplinaId !== disciplinaId && (!a.sessaoId || !sessaoIds.has(a.sessaoId))))
   );
   localStorage.setItem(
     STORAGE_KEYS.INFORMACOES,
-    JSON.stringify(getInformacoesImportantes().filter((i) => i.disciplinaId !== disciplinaId))
+    JSON.stringify(todasInformacoes.filter((i) => i.disciplinaId !== disciplinaId && (!i.sessaoId || !sessaoIds.has(i.sessaoId))))
   );
   localStorage.setItem(
     STORAGE_KEYS.SESSOES_AULA,
@@ -754,7 +841,7 @@ export function enviarDisciplinaParaLixeira(disciplinaId: string): void {
   );
   localStorage.setItem(
     STORAGE_KEYS.HORARIO,
-    JSON.stringify(getHorario().filter((h) => h.disciplinaId !== disciplinaId))
+    JSON.stringify(todosHorarios.filter((h) => h.disciplinaId !== disciplinaId))
   );
 
   saveItemLixeira({
@@ -810,10 +897,46 @@ export function enviarApontamentoParaLixeira(apontamentoId: string): void {
 
 export function enviarInformacaoParaLixeira(infoId: string): void {
   const informacoes = getInformacoesImportantes();
-  const inf = informacoes.find((i) => i.id === infoId);
+  let inf = informacoes.find((i) => i.id === infoId);
+
+  // Search inside sessions if not found directly in INFORMACOES
+  if (!inf) {
+    const sessoes = getSessoesAula();
+    for (const s of sessoes) {
+      const foundInSess = s.informacoesImportantes?.find((i) => i.id === infoId);
+      if (foundInSess) {
+        inf = {
+          ...foundInSess,
+          disciplinaId: foundInSess.disciplinaId || s.disciplinaId,
+          sessaoId: s.id,
+        };
+        break;
+      }
+    }
+  }
+
   if (!inf) return;
 
   deleteInformacaoImportante(infoId);
+
+  // If created or associated with a session, remove from session as well
+  if (inf.sessaoId) {
+    const sessoes = getSessoesAula();
+    let sessModificada = false;
+    const novaoSessoes = sessoes.map((s) => {
+      if (s.id === inf!.sessaoId || s.informacoesImportantes?.some((i) => i.id === infoId)) {
+        sessModificada = true;
+        return {
+          ...s,
+          informacoesImportantes: (s.informacoesImportantes || []).filter((i) => i.id !== infoId),
+        };
+      }
+      return s;
+    });
+    if (sessModificada) {
+      localStorage.setItem(STORAGE_KEYS.SESSOES_AULA, JSON.stringify(novaoSessoes));
+    }
+  }
 
   saveItemLixeira({
     id: generateId(),
@@ -823,6 +946,8 @@ export function enviarInformacaoParaLixeira(infoId: string): void {
     dataEliminacao: new Date().toISOString(),
     dadosOriginais: inf,
   });
+
+  notifyStorageChange();
 }
 
 export function enviarSessaoParaLixeira(sessaoId: string): void {
@@ -832,6 +957,55 @@ export function enviarSessaoParaLixeira(sessaoId: string): void {
 
   deleteSessaoAula(sessaoId);
 
+  // Collect associated media URLs
+  const urlSet = new Set([
+    ...sess.audios.map((a) => a.url),
+    ...sess.fotografias.map((f) => f.url),
+    ...sess.videos.map((v) => v.url),
+    ...(sess.materiais || []).map((m) => m.conteudo),
+  ]);
+
+  const todosMateriais = getMateriais();
+  const materiaisRelacionados = todosMateriais.filter(
+    (m) => m.sessaoId === sessaoId || (sess.disciplinaId && m.disciplinaId === sess.disciplinaId && urlSet.has(m.conteudo))
+  );
+
+  const todosApontamentos = getApontamentos();
+  const apontamentosRelacionados = todosApontamentos.filter(
+    (a) => a.sessaoId === sessaoId
+  );
+
+  const todasInformacoes = getInformacoesImportantes();
+  const informacoesRelacionadas = todasInformacoes.filter(
+    (i) => i.sessaoId === sessaoId
+  );
+
+  // Remove related captured items from active storage
+  const matRelIds = new Set(materiaisRelacionados.map((m) => m.id));
+  const apRelIds = new Set(apontamentosRelacionados.map((a) => a.id));
+  const infRelIds = new Set(informacoesRelacionadas.map((i) => i.id));
+
+  if (matRelIds.size > 0) {
+    localStorage.setItem(
+      STORAGE_KEYS.MATERIAIS,
+      JSON.stringify(todosMateriais.filter((m) => !matRelIds.has(m.id)))
+    );
+  }
+
+  if (apRelIds.size > 0) {
+    localStorage.setItem(
+      STORAGE_KEYS.APONTAMENTOS,
+      JSON.stringify(todosApontamentos.filter((a) => !apRelIds.has(a.id)))
+    );
+  }
+
+  if (infRelIds.size > 0) {
+    localStorage.setItem(
+      STORAGE_KEYS.INFORMACOES,
+      JSON.stringify(todasInformacoes.filter((i) => !infRelIds.has(i.id)))
+    );
+  }
+
   saveItemLixeira({
     id: generateId(),
     idOriginal: sess.id,
@@ -839,7 +1013,14 @@ export function enviarSessaoParaLixeira(sessaoId: string): void {
     nome: sess.titulo,
     dataEliminacao: new Date().toISOString(),
     dadosOriginais: sess,
+    dadosRelacionados: {
+      materiais: materiaisRelacionados,
+      apontamentos: apontamentosRelacionados,
+      informacoes: informacoesRelacionadas,
+    },
   });
+
+  notifyStorageChange();
 }
 
 export function enviarHorarioParaLixeira(horarioId: string): void {
@@ -961,11 +1142,42 @@ export function restaurarItemLixeira(idLixeira: string): void {
       iArr.unshift(item.dadosOriginais);
       localStorage.setItem(STORAGE_KEYS.INFORMACOES, JSON.stringify(iArr));
     }
+    if (item.dadosOriginais.sessaoId) {
+      const sessoes = getSessoesAula();
+      const sIdx = sessoes.findIndex((s) => s.id === item.dadosOriginais.sessaoId);
+      if (sIdx !== -1) {
+        if (!sessoes[sIdx].informacoesImportantes) {
+          sessoes[sIdx].informacoesImportantes = [];
+        }
+        if (!sessoes[sIdx].informacoesImportantes.some((i) => i.id === item.dadosOriginais.id)) {
+          sessoes[sIdx].informacoesImportantes.push(item.dadosOriginais);
+          localStorage.setItem(STORAGE_KEYS.SESSOES_AULA, JSON.stringify(sessoes));
+        }
+      }
+    }
   } else if (item.tipo === 'sessao_aula') {
     const sArr = getSessoesAula();
     if (!sArr.some((s) => s.id === item.dadosOriginais.id)) {
       sArr.unshift(item.dadosOriginais);
       localStorage.setItem(STORAGE_KEYS.SESSOES_AULA, JSON.stringify(sArr));
+    }
+    if (item.dadosRelacionados) {
+      const { materiais, apontamentos, informacoes } = item.dadosRelacionados;
+      if (materiais && materiais.length > 0) {
+        const mArr = getMateriais();
+        materiais.forEach((m) => { if (!mArr.some((x) => x.id === m.id)) mArr.unshift(m); });
+        localStorage.setItem(STORAGE_KEYS.MATERIAIS, JSON.stringify(mArr));
+      }
+      if (apontamentos && apontamentos.length > 0) {
+        const aArr = getApontamentos();
+        apontamentos.forEach((a) => { if (!aArr.some((x) => x.id === a.id)) aArr.unshift(a); });
+        localStorage.setItem(STORAGE_KEYS.APONTAMENTOS, JSON.stringify(aArr));
+      }
+      if (informacoes && informacoes.length > 0) {
+        const iArr = getInformacoesImportantes();
+        informacoes.forEach((i) => { if (!iArr.some((x) => x.id === i.id)) iArr.unshift(i); });
+        localStorage.setItem(STORAGE_KEYS.INFORMACOES, JSON.stringify(iArr));
+      }
     }
   } else if (item.tipo === 'horario') {
     const hArr = getHorario();

@@ -411,9 +411,10 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
       disciplinaId: disciplinaSelecionada || '',
       titulo: tituloMaterial.trim(),
       tipo: tipoMaterial,
-      conteudoUrl: conteudoMaterial || '',
-      nomeFicheiro: nomeFicheiro || `${tituloMaterial.trim()}.${tipoMaterial}`,
+      conteudo: conteudoMaterial || '',
+      nomeArquivo: nomeFicheiro || `${tituloMaterial.trim()}.${tipoMaterial}`,
       eImportante: false,
+      origemModoAula: true,
       dataCriacao: new Date().toISOString(),
     };
 
@@ -445,9 +446,10 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
         disciplinaId: disciplinaSelecionada,
         titulo: m.titulo,
         tipo: m.tipo,
-        conteudoUrl: m.conteudoUrl,
-        nomeFicheiro: m.nomeFicheiro,
+        conteudo: m.conteudo || (m as any).conteudoUrl || '',
+        nomeArquivo: m.nomeArquivo || (m as any).nomeFicheiro,
         eImportante: false,
+        origemModoAula: true,
       });
     });
 

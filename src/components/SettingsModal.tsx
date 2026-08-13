@@ -24,6 +24,7 @@ import {
 import { VisualizacaoAtual } from '../types';
 import { BackupRestoreModal } from './BackupRestoreModal';
 import { LixeiraModal } from './LixeiraModal';
+import { ConfirmModal } from './ConfirmModal';
 
 interface SettingsModalProps {
   onNavegar: (view: VisualizacaoAtual) => void;
@@ -50,6 +51,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [modalLixeiraAberto, setModalLixeiraAberto] = useState(false);
   const [qtdLixeira, setQtdLixeira] = useState(getLixeira().length);
 
+  const [confirmarSeed, setConfirmarSeed] = useState(false);
+  const [confirmarLimpar, setConfirmarLimpar] = useState(false);
+
   const recarregarLixeira = () => {
     setQtdLixeira(getLixeira().length);
   };
@@ -67,25 +71,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleCarregarExemplo = () => {
-    if (
-      window.confirm(
-        'Deseja carregar dados de exemplo (Cursos de Contabilidade, Gestão e Horários)?'
-      )
-    ) {
-      seedDadosExemplo();
-      onNavegar({ tipo: 'inicio' });
-    }
+    setConfirmarSeed(true);
+  };
+
+  const handleConfirmarCarregarExemplo = () => {
+    seedDadosExemplo();
+    setConfirmarSeed(false);
+    onNavegar({ tipo: 'inicio' });
   };
 
   const handleLimparDados = () => {
-    if (
-      window.confirm(
-        'ATENÇÃO: Deseja apagar todos os cursos, disciplinas, apontamentos e materiais salvos localmente?'
-      )
-    ) {
-      limparTodosDados();
-      onReiniciarOnboarding();
-    }
+    setConfirmarLimpar(true);
+  };
+
+  const handleConfirmarLimparDados = () => {
+    limparTodosDados();
+    setConfirmarLimpar(false);
+    onReiniciarOnboarding();
   };
 
   return (
@@ -310,6 +312,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           onAtualizado={recarregarLixeira}
         />
       )}
+
+      {/* Confirm Seed Modal */}
+      <ConfirmModal
+        isOpen={confirmarSeed}
+        titulo="Carregar Dados de Exemplo"
+        mensagem="Deseja carregar dados de exemplo (Cursos de Contabilidade, Gestão e Horários)?"
+        textoConfirmar="Carregar Dados"
+        textoCancelar="Cancelar"
+        variante="primary"
+        onConfirmar={handleConfirmarCarregarExemplo}
+        onCancelar={() => setConfirmarSeed(false)}
+      />
+
+      {/* Confirm Limpar Dados Modal */}
+      <ConfirmModal
+        isOpen={confirmarLimpar}
+        titulo="Limpar Todos os Dados"
+        mensagem="ATENÇÃO: Deseja apagar todos os cursos, disciplinas, apontamentos e materiais salvos localmente?"
+        textoConfirmar="Limpar Tudo"
+        textoCancelar="Cancelar"
+        variante="danger"
+        onConfirmar={handleConfirmarLimparDados}
+        onCancelar={() => setConfirmarLimpar(false)}
+      />
     </div>
   );
 };
