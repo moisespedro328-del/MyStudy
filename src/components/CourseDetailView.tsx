@@ -15,7 +15,7 @@ import {
   getCursos,
   getDisciplinasPorCurso,
   saveDisciplina,
-  deleteDisciplina,
+  enviarDisciplinaParaLixeira,
 } from '../lib/storage';
 import { Curso, Disciplina, VisualizacaoAtual } from '../types';
 
@@ -75,10 +75,10 @@ export const CourseDetailView: React.FC<CourseDetailViewProps> = ({
     e.stopPropagation();
     if (
       window.confirm(
-        'Tem certeza que deseja excluir esta disciplina? Todos os seus materiais e apontamentos serão removidos.'
+        'Mover esta disciplina para a Lixeira? Os seus materiais e anotações serão guardados com ela.'
       )
     ) {
-      deleteDisciplina(id);
+      enviarDisciplinaParaLixeira(id);
       recarregar();
     }
   };

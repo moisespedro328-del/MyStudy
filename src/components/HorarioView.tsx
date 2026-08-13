@@ -14,7 +14,7 @@ import {
   getDisciplinas,
   getCursos,
   saveHorarioAula,
-  deleteHorarioAula,
+  enviarHorarioParaLixeira,
 } from '../lib/storage';
 import { HorarioAula, Disciplina, Curso, VisualizacaoAtual } from '../types';
 
@@ -80,8 +80,8 @@ export const HorarioView: React.FC<HorarioViewProps> = ({ onNavegar }) => {
 
   const handleExcluir = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Excluir esta aula do horário?')) {
-      deleteHorarioAula(id);
+    if (window.confirm('Mover esta aula do horário para a Lixeira?')) {
+      enviarHorarioParaLixeira(id);
       recarregar();
     }
   };

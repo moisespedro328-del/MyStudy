@@ -29,12 +29,13 @@ import {
   getApontamentosPorDisciplina,
   getInformacoesPorDisciplina,
   getSessoesPorDisciplina,
-  deleteMaterial,
-  deleteApontamento,
-  deleteInformacaoImportante,
+  enviarMaterialParaLixeira,
+  enviarApontamentoParaLixeira,
+  enviarInformacaoParaLixeira,
   saveApontamento,
   saveInformacaoImportante,
-  deleteSessaoAula,
+  enviarSessaoParaLixeira,
+  atualizarDisciplinaSessao,
 } from '../lib/storage';
 import {
   Disciplina,
@@ -149,8 +150,8 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
   };
 
   const handleExcluirApontamento = (id: string) => {
-    if (window.confirm('Deseja excluir este apontamento?')) {
-      deleteApontamento(id);
+    if (window.confirm('Mover este apontamento para a Lixeira?')) {
+      enviarApontamentoParaLixeira(id);
       recarregar();
     }
   };
@@ -173,24 +174,24 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
   };
 
   const handleExcluirInformacao = (id: string) => {
-    if (window.confirm('Deseja remover esta informação importante?')) {
-      deleteInformacaoImportante(id);
+    if (window.confirm('Mover esta informação para a Lixeira?')) {
+      enviarInformacaoParaLixeira(id);
       recarregar();
     }
   };
 
   // Handle Material Delete
   const handleExcluirMaterial = (id: string) => {
-    if (window.confirm('Deseja remover este material?')) {
-      deleteMaterial(id);
+    if (window.confirm('Mover este material para a Lixeira?')) {
+      enviarMaterialParaLixeira(id);
       recarregar();
     }
   };
 
   // Handle Session Delete
   const handleExcluirSessao = (id: string) => {
-    if (window.confirm('Deseja remover o registo desta aula?')) {
-      deleteSessaoAula(id);
+    if (window.confirm('Mover o registo desta aula para a Lixeira?')) {
+      enviarSessaoParaLixeira(id);
       recarregar();
     }
   };
@@ -906,6 +907,7 @@ export const SubjectDetailView: React.FC<SubjectDetailViewProps> = ({
         <SessionDetailModal
           sessao={sessaoSelecionada}
           onFechar={() => setSessaoSelecionada(null)}
+          onAtualizado={recarregar}
         />
       )}
     </div>

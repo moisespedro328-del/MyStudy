@@ -7,6 +7,7 @@ import {
   SessaoAula,
   HorarioAula,
   PerfilEstudante,
+  ItemLixeira,
 } from '../types';
 
 export const STORAGE_KEYS = {
@@ -18,6 +19,7 @@ export const STORAGE_KEYS = {
   INFORMACOES: 'org_estudante_informacoes_v1',
   SESSOES_AULA: 'org_estudante_sessoes_aula_v1',
   HORARIO: 'org_estudante_horario_v1',
+  LIXEIRA: 'org_estudante_lixeira_v1',
 };
 
 // Event emitter to trigger UI re-renders on local data updates
@@ -638,4 +640,394 @@ export function seedDadosExemplo(): void {
 export function limparTodosDados(): void {
   Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
   notifyStorageChange();
+}
+
+// --- LIXEIRA ---
+
+export function getLixeira(): ItemLixeira[] {
+  const data = localStorage.getItem(STORAGE_KEYS.LIXEIRA);
+  if (data) {
+    try {
+      return JSON.parse(data);
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+export function saveItemLixeira(item: ItemLixeira): void {
+  const lixeira = getLixeira();
+  lixeira.unshift(item);
+  localStorage.setItem(STORAGE_KEYS.LIXEIRA, JSON.stringify(lixeira));
+  notifyStorageChange();
+}
+
+export function enviarCursoParaLixeira(cursoId: string): void {
+  const cursos = getCursos();
+  const curso = cursos.find((c) => c.id === cursoId);
+  if (!curso) return;
+
+  const disciplinas = getDisciplinasPorCurso(cursoId);
+  const discIds = disciplinas.map((d) => d.id);
+
+  const materiais = getMateriais().filter((m) => discIds.includes(m.disciplinaId));
+  const apontamentos = getApontamentos().filter((a) => discIds.includes(a.disciplinaId));
+  const informacoes = getInformacoesImportantes().filter((i) => discIds.includes(i.disciplinaId));
+  const sessoes = getSessoesAula().filter((s) => discIds.includes(s.disciplinaId));
+  const horarios = getHorario().filter((h) => discIds.includes(h.disciplinaId));
+
+  localStorage.setItem(STORAGE_KEYS.CURSOS, JSON.stringify(cursos.filter((c) => c.id !== cursoId)));
+  localStorage.setItem(
+    STORAGE_KEYS.DISCIPLINAS,
+    JSON.stringify(getDisciplinas().filter((d) => d.cursoId !== cursoId))
+  );
+  localStorage.setItem(
+    STORAGE_KEYS.MATERIAIS,
+    JSON.stringify(getMateriais().filter((m) => !discIds.includes(m.disciplinaId)))
+  );
+  localStorage.setItem(
+    STORAGE_KEYS.APONTAMENTOS,
+    JSON.stringify(getApontamentos().filter((a) => !discIds.includes(a.disciplinaId)))
+  );
+  localStorage.setItem(
+    STORAGE_KEYS.INFORMACOES,
+    JSON.stringify(getInformacoesImportantes().filter((i) => !discIds.includes(i.disciplinaId)))
+  );
+  localStorage.setItem(
+    STORAGE_KEYS.SESSOES_AULA,
+    JSON.stringify(getSessoesAula().filter((s) => !discIds.includes(s.disciplinaId)))
+  );
+  localStorage.setItem(
+    STORAGE_KEYS.HORARIO,
+    JSON.stringify(getHorario().filter((h) => !discIds.includes(h.disciplinaId)))
+  );
+
+  saveItemLixeira({
+    id: generateId(),
+    idOriginal: curso.id,
+    tipo: 'curso',
+    nome: curso.nome,
+    dataEliminacao: new Date().toISOString(),
+    dadosOriginais: curso,
+    dadosRelacionados: {
+      disciplinas,
+      materiais,
+      apontamentos,
+      informacoes,
+      sessoes,
+      horarios,
+    },
+  });
+}
+
+export function enviarDisciplinaParaLixeira(disciplinaId: string): void {
+  const disciplinas = getDisciplinas();
+  const disc = disciplinas.find((d) => d.id === disciplinaId);
+  if (!disc) return;
+
+  const materiais = getMateriaisPorDisciplina(disciplinaId);
+  const apontamentos = getApontamentosPorDisciplina(disciplinaId);
+  const informacoes = getInformacoesPorDisciplina(disciplinaId);
+  const sessoes = getSessoesPorDisciplina(disciplinaId);
+  const horarios = getHorario().filter((h) => h.disciplinaId === disciplinaId);
+
+  localStorage.setItem(
+    STORAGE_KEYS.DISCIPLINAS,
+    JSON.stringify(disciplinas.filter((d) => d.id !== disciplinaId))
+  );
+  localStorage.setItem(
+    STORAGE_KEYS.MATERIAIS,
+    JSON.stringify(getMateriais().filter((m) => m.disciplinaId !== disciplinaId))
+  );
+  localStorage.setItem(
+    STORAGE_KEYS.APONTAMENTOS,
+    JSON.stringify(getApontamentos().filter((a) => a.disciplinaId !== disciplinaId))
+  );
+  localStorage.setItem(
+    STORAGE_KEYS.INFORMACOES,
+    JSON.stringify(getInformacoesImportantes().filter((i) => i.disciplinaId !== disciplinaId))
+  );
+  localStorage.setItem(
+    STORAGE_KEYS.SESSOES_AULA,
+    JSON.stringify(getSessoesAula().filter((s) => s.disciplinaId !== disciplinaId))
+  );
+  localStorage.setItem(
+    STORAGE_KEYS.HORARIO,
+    JSON.stringify(getHorario().filter((h) => h.disciplinaId !== disciplinaId))
+  );
+
+  saveItemLixeira({
+    id: generateId(),
+    idOriginal: disc.id,
+    tipo: 'disciplina',
+    nome: disc.nome,
+    dataEliminacao: new Date().toISOString(),
+    dadosOriginais: disc,
+    dadosRelacionados: {
+      materiais,
+      apontamentos,
+      informacoes,
+      sessoes,
+      horarios,
+    },
+  });
+}
+
+export function enviarMaterialParaLixeira(materialId: string): void {
+  const materiais = getMateriais();
+  const mat = materiais.find((m) => m.id === materialId);
+  if (!mat) return;
+
+  deleteMaterial(materialId);
+
+  saveItemLixeira({
+    id: generateId(),
+    idOriginal: mat.id,
+    tipo: 'material',
+    nome: mat.titulo,
+    dataEliminacao: new Date().toISOString(),
+    dadosOriginais: mat,
+  });
+}
+
+export function enviarApontamentoParaLixeira(apontamentoId: string): void {
+  const apontamentos = getApontamentos();
+  const ap = apontamentos.find((a) => a.id === apontamentoId);
+  if (!ap) return;
+
+  deleteApontamento(apontamentoId);
+
+  saveItemLixeira({
+    id: generateId(),
+    idOriginal: ap.id,
+    tipo: 'apontamento',
+    nome: ap.titulo || 'Apontamento',
+    dataEliminacao: new Date().toISOString(),
+    dadosOriginais: ap,
+  });
+}
+
+export function enviarInformacaoParaLixeira(infoId: string): void {
+  const informacoes = getInformacoesImportantes();
+  const inf = informacoes.find((i) => i.id === infoId);
+  if (!inf) return;
+
+  deleteInformacaoImportante(infoId);
+
+  saveItemLixeira({
+    id: generateId(),
+    idOriginal: inf.id,
+    tipo: 'informacao_importante',
+    nome: inf.texto.slice(0, 40) + (inf.texto.length > 40 ? '...' : ''),
+    dataEliminacao: new Date().toISOString(),
+    dadosOriginais: inf,
+  });
+}
+
+export function enviarSessaoParaLixeira(sessaoId: string): void {
+  const sessoes = getSessoesAula();
+  const sess = sessoes.find((s) => s.id === sessaoId);
+  if (!sess) return;
+
+  deleteSessaoAula(sessaoId);
+
+  saveItemLixeira({
+    id: generateId(),
+    idOriginal: sess.id,
+    tipo: 'sessao_aula',
+    nome: sess.titulo,
+    dataEliminacao: new Date().toISOString(),
+    dadosOriginais: sess,
+  });
+}
+
+export function enviarHorarioParaLixeira(horarioId: string): void {
+  const horarios = getHorario();
+  const hor = horarios.find((h) => h.id === horarioId);
+  if (!hor) return;
+
+  deleteHorarioAula(horarioId);
+
+  const disc = getDisciplinas().find((d) => d.id === hor.disciplinaId);
+
+  saveItemLixeira({
+    id: generateId(),
+    idOriginal: hor.id,
+    tipo: 'horario',
+    nome: `Horário — ${disc?.nome || 'Disciplina'} (${hor.horaInicio} - ${hor.horaFim})`,
+    dataEliminacao: new Date().toISOString(),
+    dadosOriginais: hor,
+  });
+}
+
+export function restaurarItemLixeira(idLixeira: string): void {
+  const lixeira = getLixeira();
+  const idx = lixeira.findIndex((item) => item.id === idLixeira);
+  if (idx === -1) return;
+
+  const item = lixeira[idx];
+  lixeira.splice(idx, 1);
+  localStorage.setItem(STORAGE_KEYS.LIXEIRA, JSON.stringify(lixeira));
+
+  if (item.tipo === 'curso') {
+    const cursos = getCursos();
+    if (!cursos.some((c) => c.id === item.dadosOriginais.id)) {
+      cursos.push(item.dadosOriginais);
+      localStorage.setItem(STORAGE_KEYS.CURSOS, JSON.stringify(cursos));
+    }
+    if (item.dadosRelacionados) {
+      const { disciplinas, materiais, apontamentos, informacoes, sessoes, horarios } = item.dadosRelacionados;
+      if (disciplinas) {
+        const dArr = getDisciplinas();
+        disciplinas.forEach((d) => { if (!dArr.some((x) => x.id === d.id)) dArr.push(d); });
+        localStorage.setItem(STORAGE_KEYS.DISCIPLINAS, JSON.stringify(dArr));
+      }
+      if (materiais) {
+        const mArr = getMateriais();
+        materiais.forEach((m) => { if (!mArr.some((x) => x.id === m.id)) mArr.push(m); });
+        localStorage.setItem(STORAGE_KEYS.MATERIAIS, JSON.stringify(mArr));
+      }
+      if (apontamentos) {
+        const aArr = getApontamentos();
+        apontamentos.forEach((a) => { if (!aArr.some((x) => x.id === a.id)) aArr.push(a); });
+        localStorage.setItem(STORAGE_KEYS.APONTAMENTOS, JSON.stringify(aArr));
+      }
+      if (informacoes) {
+        const iArr = getInformacoesImportantes();
+        informacoes.forEach((i) => { if (!iArr.some((x) => x.id === i.id)) iArr.push(i); });
+        localStorage.setItem(STORAGE_KEYS.INFORMACOES, JSON.stringify(iArr));
+      }
+      if (sessoes) {
+        const sArr = getSessoesAula();
+        sessoes.forEach((s) => { if (!sArr.some((x) => x.id === s.id)) sArr.push(s); });
+        localStorage.setItem(STORAGE_KEYS.SESSOES_AULA, JSON.stringify(sArr));
+      }
+      if (horarios) {
+        const hArr = getHorario();
+        horarios.forEach((h) => { if (!hArr.some((x) => x.id === h.id)) hArr.push(h); });
+        localStorage.setItem(STORAGE_KEYS.HORARIO, JSON.stringify(hArr));
+      }
+    }
+  } else if (item.tipo === 'disciplina') {
+    const dArr = getDisciplinas();
+    if (!dArr.some((d) => d.id === item.dadosOriginais.id)) {
+      dArr.push(item.dadosOriginais);
+      localStorage.setItem(STORAGE_KEYS.DISCIPLINAS, JSON.stringify(dArr));
+    }
+    if (item.dadosRelacionados) {
+      const { materiais, apontamentos, informacoes, sessoes, horarios } = item.dadosRelacionados;
+      if (materiais) {
+        const mArr = getMateriais();
+        materiais.forEach((m) => { if (!mArr.some((x) => x.id === m.id)) mArr.push(m); });
+        localStorage.setItem(STORAGE_KEYS.MATERIAIS, JSON.stringify(mArr));
+      }
+      if (apontamentos) {
+        const aArr = getApontamentos();
+        apontamentos.forEach((a) => { if (!aArr.some((x) => x.id === a.id)) aArr.push(a); });
+        localStorage.setItem(STORAGE_KEYS.APONTAMENTOS, JSON.stringify(aArr));
+      }
+      if (informacoes) {
+        const iArr = getInformacoesImportantes();
+        informacoes.forEach((i) => { if (!iArr.some((x) => x.id === i.id)) iArr.push(i); });
+        localStorage.setItem(STORAGE_KEYS.INFORMACOES, JSON.stringify(iArr));
+      }
+      if (sessoes) {
+        const sArr = getSessoesAula();
+        sessoes.forEach((s) => { if (!sArr.some((x) => x.id === s.id)) sArr.push(s); });
+        localStorage.setItem(STORAGE_KEYS.SESSOES_AULA, JSON.stringify(sArr));
+      }
+      if (horarios) {
+        const hArr = getHorario();
+        horarios.forEach((h) => { if (!hArr.some((x) => x.id === h.id)) hArr.push(h); });
+        localStorage.setItem(STORAGE_KEYS.HORARIO, JSON.stringify(hArr));
+      }
+    }
+  } else if (item.tipo === 'material') {
+    const mArr = getMateriais();
+    if (!mArr.some((m) => m.id === item.dadosOriginais.id)) {
+      mArr.unshift(item.dadosOriginais);
+      localStorage.setItem(STORAGE_KEYS.MATERIAIS, JSON.stringify(mArr));
+    }
+  } else if (item.tipo === 'apontamento') {
+    const aArr = getApontamentos();
+    if (!aArr.some((a) => a.id === item.dadosOriginais.id)) {
+      aArr.unshift(item.dadosOriginais);
+      localStorage.setItem(STORAGE_KEYS.APONTAMENTOS, JSON.stringify(aArr));
+    }
+  } else if (item.tipo === 'informacao_importante') {
+    const iArr = getInformacoesImportantes();
+    if (!iArr.some((i) => i.id === item.dadosOriginais.id)) {
+      iArr.unshift(item.dadosOriginais);
+      localStorage.setItem(STORAGE_KEYS.INFORMACOES, JSON.stringify(iArr));
+    }
+  } else if (item.tipo === 'sessao_aula') {
+    const sArr = getSessoesAula();
+    if (!sArr.some((s) => s.id === item.dadosOriginais.id)) {
+      sArr.unshift(item.dadosOriginais);
+      localStorage.setItem(STORAGE_KEYS.SESSOES_AULA, JSON.stringify(sArr));
+    }
+  } else if (item.tipo === 'horario') {
+    const hArr = getHorario();
+    if (!hArr.some((h) => h.id === item.dadosOriginais.id)) {
+      hArr.push(item.dadosOriginais);
+      localStorage.setItem(STORAGE_KEYS.HORARIO, JSON.stringify(hArr));
+    }
+  }
+
+  notifyStorageChange();
+}
+
+export function eliminarPermanentementeLixeira(idLixeira: string): void {
+  const lixeira = getLixeira().filter((item) => item.id !== idLixeira);
+  localStorage.setItem(STORAGE_KEYS.LIXEIRA, JSON.stringify(lixeira));
+  notifyStorageChange();
+}
+
+export function esvaziarLixeira(): void {
+  localStorage.setItem(STORAGE_KEYS.LIXEIRA, JSON.stringify([]));
+  notifyStorageChange();
+}
+
+export function atualizarDisciplinaSessao(sessaoId: string, novaDisciplinaId: string): void {
+  const sessoes = getSessoesAula();
+  const idx = sessoes.findIndex((s) => s.id === sessaoId);
+  if (idx !== -1) {
+    const disciplinaAntigaId = sessoes[idx].disciplinaId;
+    sessoes[idx].disciplinaId = novaDisciplinaId;
+
+    // Update internal info items
+    if (sessoes[idx].informacoesImportantes) {
+      sessoes[idx].informacoesImportantes = sessoes[idx].informacoesImportantes.map((inf) => ({
+        ...inf,
+        disciplinaId: novaDisciplinaId,
+      }));
+    }
+
+    localStorage.setItem(STORAGE_KEYS.SESSOES_AULA, JSON.stringify(sessoes));
+
+    // Update materials created specifically for this session
+    const materiais = getMateriais();
+    let matModificado = false;
+
+    const urlsSessao = new Set([
+      ...sessoes[idx].audios.map((a) => a.url),
+      ...sessoes[idx].fotografias.map((f) => f.url),
+      ...sessoes[idx].videos.map((v) => v.url),
+      ...(sessoes[idx].materiais || []).map((m) => m.conteudo),
+    ]);
+
+    materiais.forEach((m, mIdx) => {
+      if (m.disciplinaId === disciplinaAntigaId && urlsSessao.has(m.conteudo)) {
+        materiais[mIdx].disciplinaId = novaDisciplinaId;
+        matModificado = true;
+      }
+    });
+
+    if (matModificado) {
+      localStorage.setItem(STORAGE_KEYS.MATERIAIS, JSON.stringify(materiais));
+    }
+
+    notifyStorageChange();
+  }
 }

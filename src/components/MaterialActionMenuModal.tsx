@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { MaterialItem } from '../types';
 import { compartilharMaterial, guardarNoDispositivo } from '../lib/materialActions';
-import { toggleMaterialImportant, updateMaterial, deleteMaterial } from '../lib/storage';
+import { toggleMaterialImportant, updateMaterial, enviarMaterialParaLixeira } from '../lib/storage';
 
 interface MaterialActionMenuModalProps {
   material: MaterialItem;
@@ -77,9 +77,9 @@ export const MaterialActionMenuModal: React.FC<MaterialActionMenuModalProps> = (
     if (onAtualizado) onAtualizado();
   };
 
-  // 🗑️ REMOVER DO APLICATIVO
+  // 🗑️ REMOVER DO APLICATIVO (Envia para a Lixeira)
   const handleConfirmarExcluir = () => {
-    deleteMaterial(material.id);
+    enviarMaterialParaLixeira(material.id);
     setModalExcluirAberto(false);
     if (onRemovido) {
       onRemovido();

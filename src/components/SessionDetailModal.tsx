@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   X,
   Mic,
@@ -8,18 +8,56 @@ import {
   Bookmark,
   Calendar,
   Clock,
+  Edit2,
+  Folder,
+  Layers,
+  BookOpen,
+  Check,
 } from 'lucide-react';
-import { SessaoAula } from '../types';
+import { SessaoAula, Disciplina, Curso } from '../types';
+import { getDisciplinas, getCursos, atualizarDisciplinaSessao } from '../lib/storage';
 
 interface SessionDetailModalProps {
   sessao: SessaoAula;
   onFechar: () => void;
+  onAtualizado?: () => void;
 }
 
 export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
   sessao,
   onFechar,
+  onAtualizado,
 }) => {
+  const [modalAlterarDisciplina, setModalAlterarDisciplina] = useState(false);
+  const [disciplinaAtualId, setDisciplinaAtualId] = useState(sessao.disciplinaId);
+
+  const disciplinas = getDisciplinas();
+  const cursos = getCursos();
+
+  const disciplinaAtual = disciplinas.find((d) => d.id === disciplinaAtualId);
+  const cursoAtual = disciplinaAtual
+    ? cursos.find((c) => c.id === disciplinaAtual.cursoId)
+    : null;
+
+  const [cursoSelecionadoId, setCursoSelecionadoId] = useState<string>(
+    cursoAtual?.id || (cursos[0]?.id || '')
+  );
+  const [novaDisciplinaId, setNovaDisciplinaId] = useState<string>(
+    disciplinaAtualId
+  );
+
+  const disciplinasDoCurso = disciplinas.filter(
+    (d) => d.cursoId === cursoSelecionadoId
+  );
+
+  const handleSalvarAlteracaoDisciplina = () => {
+    if (!novaDisciplinaId) return;
+    atualizarDisciplinaSessao(sessao.id, novaDisciplinaId);
+    setDisciplinaAtualId(novaDisciplinaId);
+    setModalAlterarDisciplina(false);
+    if (onAtualizado) onAtualizado();
+  };
+
   return (
     <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
@@ -45,6 +83,26 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
             className="text-slate-300 hover:text-white p-1 rounded-xl transition cursor-pointer"
           >
             <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        {/* Subheader - Current Discipline & Change Discipline Button */}
+        <div className="bg-slate-100 p-3 px-6 border-b border-slate-200 flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+            <Layers className="w-4 h-4 text-indigo-600 shrink-0" />
+            <span>
+              {cursoAtual ? `${cursoAtual.nome} • ` : ''}
+              {disciplinaAtual ? disciplinaAtual.nome : 'Sem disciplina definida'}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setModalAlterarDisciplina(true)}
+            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+            <span>Alterar disciplina</span>
           </button>
         </div>
 
@@ -87,6 +145,32 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
                       {n.timestamp}
                     </span>
                     {n.texto}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Materials Attached */}
+          {sessao.materiais && sessao.materiais.length > 0 && (
+            <div className="space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                <Folder className="w-4 h-4 text-emerald-600" />
+                <span>Materiais Anexados ({sessao.materiais.length})</span>
+              </h3>
+              <div className="grid gap-2">
+                {sessao.materiais.map((m) => (
+                  <div
+                    key={m.id}
+                    className="p-3.5 bg-white border border-slate-200 rounded-2xl text-xs flex items-center justify-between gap-3 shadow-sm"
+                  >
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <Folder className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="font-bold text-slate-800 truncate">{m.titulo}</span>
+                    </div>
+                    <span className="text-[10px] uppercase font-black px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-md shrink-0">
+                      {m.tipo}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -168,6 +252,99 @@ export const SessionDetailModal: React.FC<SessionDetailModalProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Alterar Disciplina Sub-modal */}
+      {modalAlterarDisciplina && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xs z-60 flex items-center justify-center p-4">
+          <div className="bg-white max-w-md w-full p-6 rounded-3xl shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                <Edit2 className="w-4 h-4 text-indigo-600" />
+                <span>Alterar Disciplina da Aula</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setModalAlterarDisciplina(false)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              Selecione o Curso e a Disciplina à qual este registo de aula pertence.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  1. Selecionar Curso
+                </label>
+                <select
+                  value={cursoSelecionadoId}
+                  onChange={(e) => {
+                    const cId = e.target.value;
+                    setCursoSelecionadoId(cId);
+                    const discList = disciplinas.filter((d) => d.cursoId === cId);
+                    if (discList.length > 0) {
+                      setNovaDisciplinaId(discList[0].id);
+                    } else {
+                      setNovaDisciplinaId('');
+                    }
+                  }}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-slate-800 text-xs focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  {cursos.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  2. Selecionar Disciplina
+                </label>
+                <select
+                  value={novaDisciplinaId}
+                  onChange={(e) => setNovaDisciplinaId(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-slate-800 text-xs focus:ring-2 focus:ring-indigo-500 bg-white"
+                >
+                  {disciplinasDoCurso.length === 0 ? (
+                    <option value="">Nenhuma disciplina neste curso</option>
+                  ) : (
+                    disciplinasDoCurso.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.nome} {d.codigo ? `(${d.codigo})` : ''}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setModalAlterarDisciplina(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSalvarAlteracaoDisciplina}
+                disabled={!novaDisciplinaId}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Check className="w-4 h-4" />
+                <span>Guardar Alteração</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

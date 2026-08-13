@@ -13,7 +13,7 @@ import {
   getDisciplinas,
   getCursos,
   saveInformacaoImportante,
-  deleteInformacaoImportante,
+  enviarInformacaoParaLixeira,
 } from '../lib/storage';
 import { InformacaoImportante, Disciplina, Curso, VisualizacaoAtual } from '../types';
 
@@ -69,8 +69,8 @@ export const InformacoesImportantesView: React.FC<InformacoesImportantesViewProp
   };
 
   const handleExcluir = (id: string) => {
-    if (window.confirm('Excluir esta informação importante?')) {
-      deleteInformacaoImportante(id);
+    if (window.confirm('Mover esta informação importante para a Lixeira?')) {
+      enviarInformacaoParaLixeira(id);
       recarregar();
     }
   };

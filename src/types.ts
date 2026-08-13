@@ -96,6 +96,33 @@ export interface SessaoAula {
   videos: ItemVideoSessao[];
   notas: ItemNotaSessao[];
   informacoesImportantes: InformacaoImportante[];
+  materiais?: MaterialItem[];
+}
+
+export type TipoItemLixeira =
+  | 'curso'
+  | 'disciplina'
+  | 'apontamento'
+  | 'horario'
+  | 'sessao_aula'
+  | 'informacao_importante'
+  | 'material';
+
+export interface ItemLixeira {
+  id: string;
+  idOriginal: string;
+  tipo: TipoItemLixeira;
+  nome: string;
+  dataEliminacao: string;
+  dadosOriginais: any;
+  dadosRelacionados?: {
+    disciplinas?: Disciplina[];
+    materiais?: MaterialItem[];
+    apontamentos?: Apontamento[];
+    informacoes?: InformacaoImportante[];
+    sessoes?: SessaoAula[];
+    horarios?: HorarioAula[];
+  };
 }
 
 export interface HorarioAula {

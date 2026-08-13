@@ -13,7 +13,7 @@ import {
   getCursos,
   getDisciplinasPorCurso,
   saveCurso,
-  deleteCurso,
+  enviarCursoParaLixeira,
   CORES_PALETA,
 } from '../lib/storage';
 import { Curso, VisualizacaoAtual } from '../types';
@@ -58,10 +58,10 @@ export const CoursesView: React.FC<CoursesViewProps> = ({ onNavegar }) => {
     e.stopPropagation();
     if (
       window.confirm(
-        'Tem certeza que deseja excluir este curso? Todas as disciplinas, materiais e apontamentos deste curso também serão removidos.'
+        'Mover este curso para a Lixeira? As disciplinas e conteúdos serão guardados com ele.'
       )
     ) {
-      deleteCurso(cursoId);
+      enviarCursoParaLixeira(cursoId);
       recarregar();
     }
   };

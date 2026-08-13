@@ -13,6 +13,10 @@ import {
   Trash2,
   Clock,
   Sparkles,
+  FolderPlus,
+  FileUp,
+  File,
+  AlertCircle,
 } from 'lucide-react';
 import {
   getCursos,
@@ -20,6 +24,7 @@ import {
   getDisciplinasPorCurso,
   getProximasAulasHoje,
   saveSessaoAula,
+  saveMaterial,
 } from '../lib/storage';
 import {
   Curso,
@@ -29,6 +34,8 @@ import {
   ItemVideoSessao,
   ItemNotaSessao,
   InformacaoImportante,
+  MaterialItem,
+  TipoMaterial,
   VisualizacaoAtual,
 } from '../types';
 
@@ -53,6 +60,7 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
   const [informacoesImportantes, setInformacoesImportantes] = useState<
     InformacaoImportante[]
   >([]);
+  const [materiaisAnexados, setMateriaisAnexados] = useState<MaterialItem[]>([]);
 
   // Active Modals for capture
   const [modalAudioAberto, setModalAudioAberto] = useState(false);
@@ -60,6 +68,7 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
   const [modalVideoAberto, setModalVideoAberto] = useState(false);
   const [modalNotaAberto, setModalNotaAberto] = useState(false);
   const [modalInfoAberto, setModalInfoAberto] = useState(false);
+  const [modalMaterialAberto, setModalMaterialAberto] = useState(false);
   const [modalFinalizarAberto, setModalFinalizarAberto] = useState(false);
 
   // Active Media Recording States
@@ -69,9 +78,18 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
   const [cameraAtiva, setCameraAtiva] = useState(false);
   const [gravandoVideo, setGravandoVideo] = useState(false);
 
-  // Quick text inputs
+  // Quick inputs
   const [textoNota, setTextoNota] = useState('');
   const [textoInfo, setTextoInfo] = useState('');
+
+  // Material attachment input
+  const [tituloMaterial, setTituloMaterial] = useState('');
+  const [tipoMaterial, setTipoMaterial] = useState<TipoMaterial>('pdf');
+  const [conteudoMaterial, setConteudoMaterial] = useState('');
+  const [nomeFicheiro, setNomeFicheiro] = useState('');
+
+  // Toast / Conflict notification state
+  const [mensagemConflito, setMensagemConflito] = useState<string | null>(null);
 
   // Course / Discipline selection at conclusion
   const [cursosList, setCursosList] = useState<Curso[]>([]);
@@ -88,6 +106,11 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
   const audioChunksRef = useRef<Blob[]>([]);
   const videoChunksRef = useRef<Blob[]>([]);
   const timerAudioRef = useRef<any>(null);
+
+  const mostrarToastConflito = (msg: string) => {
+    setMensagemConflito(msg);
+    setTimeout(() => setMensagemConflito(null), 4000);
+  };
 
   // Main session timer tick
   useEffect(() => {
@@ -141,8 +164,15 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
-  // --- Audio Capturing ---
+  // --- Audio Capturing (Non-blocking / Background capable) ---
   const handleIniciarAudio = async () => {
+    if (gravandoVideo) {
+      mostrarToastConflito(
+        'A gravação de vídeo já possui áudio integrado. Conclua o vídeo para iniciar um áudio separado.'
+      );
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunksRef.current = [];
@@ -179,6 +209,7 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
       timerAudioRef.current = setInterval(() => {
         setDuracaoGravacaoAudio((prev) => prev + 1);
       }, 1000);
+      setModalAudioAberto(false); // Close modal so user can work non-blocking!
     } catch (err) {
       alert('Não foi possível acessar o microfone.');
     }
@@ -195,6 +226,13 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
 
   // --- Photo Capturing ---
   const handleIniciarCameraFoto = async () => {
+    if (gravandoVideo) {
+      mostrarToastConflito(
+        'A gravação de vídeo está ativa. Pare o vídeo para tirar fotografias.'
+      );
+      return;
+    }
+
     setModalFotoAberto(true);
     setCameraAtiva(true);
     try {
@@ -245,6 +283,13 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
 
   // --- Video Capturing ---
   const handleIniciarCameraVideo = async () => {
+    if (gravandoAudio) {
+      mostrarToastConflito(
+        'Termine a gravação de áudio em segundo plano antes de iniciar um vídeo.'
+      );
+      return;
+    }
+
     setModalVideoAberto(true);
     setCameraAtiva(true);
     try {
@@ -340,6 +385,46 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
     setModalInfoAberto(false);
   };
 
+  // --- Attach Material / Document ---
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setNomeFicheiro(file.name);
+    if (!tituloMaterial) {
+      setTituloMaterial(file.name.replace(/\.[^/.]+$/, ''));
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setConteudoMaterial(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAdicionarMaterial = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tituloMaterial.trim()) return;
+
+    const novoMat: MaterialItem = {
+      id: Date.now().toString(),
+      disciplinaId: disciplinaSelecionada || '',
+      titulo: tituloMaterial.trim(),
+      tipo: tipoMaterial,
+      conteudoUrl: conteudoMaterial || '',
+      nomeFicheiro: nomeFicheiro || `${tituloMaterial.trim()}.${tipoMaterial}`,
+      eImportante: false,
+      dataCriacao: new Date().toISOString(),
+    };
+
+    setMateriaisAnexados((prev) => [...prev, novoMat]);
+
+    setTituloMaterial('');
+    setConteudoMaterial('');
+    setNomeFicheiro('');
+    setModalMaterialAberto(false);
+  };
+
   // --- Finish Class ---
   const handleAbrirModalFinalizar = () => {
     setModalFinalizarAberto(true);
@@ -354,6 +439,18 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
 
     const duracaoMin = Math.max(1, Math.round(tempoSegundos / 60));
 
+    // Save attached materials as permanent discipline materials in storage
+    const materiaisSalvos: MaterialItem[] = materiaisAnexados.map((m) => {
+      return saveMaterial({
+        disciplinaId: disciplinaSelecionada,
+        titulo: m.titulo,
+        tipo: m.tipo,
+        conteudoUrl: m.conteudoUrl,
+        nomeFicheiro: m.nomeFicheiro,
+        eImportante: false,
+      });
+    });
+
     saveSessaoAula({
       disciplinaId: disciplinaSelecionada,
       titulo: tituloAula.trim() || `Aula de ${new Date().toLocaleDateString('pt-BR')}`,
@@ -364,6 +461,7 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
       fotografias,
       videos,
       notas,
+      materiais: materiaisSalvos,
       informacoesImportantes: informacoesImportantes.map((i) => ({
         ...i,
         disciplinaId: disciplinaSelecionada,
@@ -380,6 +478,23 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
 
   return (
     <div className="space-y-6 pb-24">
+      {/* Toast Alert for Conflitos */}
+      {mensagemConflito && (
+        <div className="bg-rose-50 border-2 border-rose-300 text-rose-900 p-4 rounded-2xl shadow-lg flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2 text-xs font-bold">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+            <span>{mensagemConflito}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMensagemConflito(null)}
+            className="text-rose-400 hover:text-rose-700 p-1"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Top Banner with Active Session Timer */}
       <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white p-6 rounded-3xl shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-amber-400/40 relative overflow-hidden">
         <div className="space-y-1">
@@ -389,7 +504,7 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
           </div>
           <h1 className="text-2xl font-black">{tituloAula}</h1>
           <p className="text-amber-100 text-xs">
-            Capture fotos, áudios, vídeos e anotações. O aplicativo salvará tudo na disciplina certa ao finalizar.
+            Capture fotos, áudios, vídeos, documentos e anotações. O aplicativo salvará tudo na disciplina certa ao finalizar.
           </p>
         </div>
 
@@ -404,18 +519,64 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
         </div>
       </div>
 
+      {/* Persistent Background Audio Status Bar */}
+      {gravandoAudio && (
+        <div className="bg-gradient-to-r from-red-600 to-rose-700 text-white p-4 rounded-2xl shadow-lg flex items-center justify-between gap-3 border border-red-400 animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+              <Mic className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <span className="text-xs font-extrabold block">
+                🎙️ Gravação de Áudio Ativa em Segundo Plano
+              </span>
+              <span className="text-[11px] text-red-100 font-mono">
+                Duração: {duracaoGravacaoAudio}s — Pode continuar tirando fotos e notas!
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handlePararAudio}
+            className="px-4 py-2 bg-white text-red-700 font-extrabold text-xs rounded-xl hover:bg-red-50 transition shrink-0 flex items-center gap-1.5 shadow-sm cursor-pointer"
+          >
+            <Square className="w-3.5 h-3.5 fill-red-700" />
+            <span>Parar e Guardar</span>
+          </button>
+        </div>
+      )}
+
       {/* Instant Action Grid Buttons */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* Gravar Áudio */}
         <button
           type="button"
-          onClick={() => setModalAudioAberto(true)}
-          className="p-4 bg-white border border-slate-200 hover:border-indigo-500 rounded-3xl shadow-sm hover:shadow-md transition flex flex-col items-center justify-center gap-2 cursor-pointer group"
+          onClick={() => {
+            if (gravandoAudio) {
+              setModalAudioAberto(true);
+            } else {
+              handleIniciarAudio();
+            }
+          }}
+          className={`p-4 border rounded-3xl shadow-sm hover:shadow-md transition flex flex-col items-center justify-center gap-2 cursor-pointer group ${
+            gravandoAudio
+              ? 'bg-red-50 border-red-300'
+              : 'bg-white border-slate-200 hover:border-indigo-500'
+          }`}
         >
-          <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+          <div
+            className={`w-12 h-12 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform ${
+              gravandoAudio
+                ? 'bg-red-600 text-white animate-pulse'
+                : 'bg-indigo-50 text-indigo-600'
+            }`}
+          >
             <Mic className="w-6 h-6" />
           </div>
-          <span className="text-xs font-bold text-slate-800">Gravar Áudio</span>
+          <span className="text-xs font-bold text-slate-800">
+            {gravandoAudio ? `Áudio (${duracaoGravacaoAudio}s)` : 'Gravar Áudio'}
+          </span>
         </button>
 
         {/* Tirar Fotografia */}
@@ -442,6 +603,18 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
           <span className="text-xs font-bold text-slate-800">Gravar Vídeo</span>
         </button>
 
+        {/* Adicionar Material */}
+        <button
+          type="button"
+          onClick={() => setModalMaterialAberto(true)}
+          className="p-4 bg-emerald-50 border border-emerald-200 hover:border-emerald-400 rounded-3xl shadow-sm hover:shadow-md transition flex flex-col items-center justify-center gap-2 cursor-pointer group"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center group-hover:scale-110 transition-transform shadow-md">
+            <FolderPlus className="w-6 h-6" />
+          </div>
+          <span className="text-xs font-extrabold text-emerald-900">Anexar Material</span>
+        </button>
+
         {/* Nota Rápida */}
         <button
           type="button"
@@ -458,7 +631,7 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
         <button
           type="button"
           onClick={() => setModalInfoAberto(true)}
-          className="p-4 bg-amber-50 border border-amber-200 hover:border-amber-400 rounded-3xl shadow-sm hover:shadow-md transition flex flex-col items-center justify-center gap-2 cursor-pointer group col-span-2 sm:col-span-1"
+          className="p-4 bg-amber-50 border border-amber-200 hover:border-amber-400 rounded-3xl shadow-sm hover:shadow-md transition flex flex-col items-center justify-center gap-2 cursor-pointer group"
         >
           <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center group-hover:scale-110 transition-transform shadow-md">
             <Bookmark className="w-6 h-6 fill-white" />
@@ -475,7 +648,13 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
             <span>Conteúdos Capturados Nesta Aula</span>
           </h2>
           <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">
-            {audios.length + fotografias.length + videos.length + notas.length + informacoesImportantes.length} itens
+            {audios.length +
+              fotografias.length +
+              videos.length +
+              notas.length +
+              informacoesImportantes.length +
+              materiaisAnexados.length}{' '}
+            itens
           </span>
         </div>
 
@@ -483,9 +662,10 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
         fotografias.length === 0 &&
         videos.length === 0 &&
         notas.length === 0 &&
-        informacoesImportantes.length === 0 ? (
+        informacoesImportantes.length === 0 &&
+        materiaisAnexados.length === 0 ? (
           <div className="py-10 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-2xl">
-            Sua aula está em andamento! Toque nos botões acima para gravar áudios, fotos, vídeos ou notas rápidas.
+            Sua aula está em andamento! Toque nos botões acima para gravar áudios, fotos, vídeos, anexar materiais ou notas rápidas.
           </div>
         ) : (
           <div className="space-y-4">
@@ -510,6 +690,39 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
                     )
                   }
                   className="text-amber-700 hover:text-red-600 p-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+
+            {/* Materiais Anexados */}
+            {materiaisAnexados.map((m) => (
+              <div
+                key={m.id}
+                className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-3 overflow-hidden">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                    <FolderPlus className="w-4 h-4" />
+                  </div>
+                  <div className="overflow-hidden">
+                    <span className="text-[10px] font-bold text-emerald-800 uppercase tracking-wider block">
+                      Material Anexado ({m.tipo})
+                    </span>
+                    <p className="font-bold text-slate-800 text-xs truncate">
+                      {m.titulo}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMateriaisAnexados((prev) =>
+                      prev.filter((item) => item.id !== m.id)
+                    )
+                  }
+                  className="text-emerald-700 hover:text-red-600 p-1 shrink-0"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -830,6 +1043,94 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
                   className="w-1/2 py-2.5 bg-amber-500 text-white font-semibold rounded-xl hover:bg-amber-600 transition text-xs"
                 >
                   Guardar Info
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Adicionar Material / Documento */}
+      {modalMaterialAberto && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="bg-emerald-600 p-5 text-white flex items-center justify-between">
+              <h3 className="font-bold text-base flex items-center gap-2">
+                <FolderPlus className="w-5 h-5" />
+                <span>Anexar Material à Aula</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setModalMaterialAberto(false)}
+                className="text-emerald-200 hover:text-white p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAdicionarMaterial} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Título do Material *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: 'Slides do Capítulo 3' ou 'Lista de Exercícios'"
+                  value={tituloMaterial}
+                  onChange={(e) => setTituloMaterial(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-slate-800 text-xs focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Tipo de Material
+                </label>
+                <select
+                  value={tipoMaterial}
+                  onChange={(e) => setTipoMaterial(e.target.value as TipoMaterial)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-slate-800 text-xs focus:ring-2 focus:ring-emerald-500 bg-white"
+                >
+                  <option value="pdf">Ficheiro PDF</option>
+                  <option value="slide">Apresentação / Slides</option>
+                  <option value="documento">Documento de Texto</option>
+                  <option value="imagem">Imagem / Diagrama</option>
+                  <option value="outro">Outro Tipo</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Selecionar Ficheiro do Dispositivo
+                </label>
+                <label className="w-full p-4 border-2 border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/50 rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition">
+                  <FileUp className="w-6 h-6 text-emerald-600" />
+                  <span className="text-xs font-bold text-emerald-900">
+                    {nomeFicheiro ? `Ficheiro: ${nomeFicheiro}` : 'Toque para escolher ficheiro'}
+                  </span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                </label>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setModalMaterialAberto(false)}
+                  className="w-1/2 py-2.5 border border-slate-300 text-slate-700 font-semibold rounded-xl text-xs"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Anexar Material</span>
                 </button>
               </div>
             </form>

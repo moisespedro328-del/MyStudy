@@ -19,9 +19,11 @@ import {
   savePerfil,
   seedDadosExemplo,
   limparTodosDados,
+  getLixeira,
 } from '../lib/storage';
 import { VisualizacaoAtual } from '../types';
 import { BackupRestoreModal } from './BackupRestoreModal';
+import { LixeiraModal } from './LixeiraModal';
 
 interface SettingsModalProps {
   onNavegar: (view: VisualizacaoAtual) => void;
@@ -45,6 +47,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     aberto: boolean;
     aba: 'exportar' | 'restaurar';
   }>({ aberto: false, aba: 'exportar' });
+  const [modalLixeiraAberto, setModalLixeiraAberto] = useState(false);
+  const [qtdLixeira, setQtdLixeira] = useState(getLixeira().length);
+
+  const recarregarLixeira = () => {
+    setQtdLixeira(getLixeira().length);
+  };
 
   const handleSalvarPreferencias = (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,23 +182,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </button>
       </form>
 
-      {/* Dados e Armazenamento -> Backup e Dados */}
+      {/* Dados e Armazenamento -> Backup e Dados + Lixeira */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <div className="border-b border-slate-100 pb-3">
-          <span className="text-[10px] uppercase font-bold text-indigo-600 tracking-wider block">
-            Dados e armazenamento
-          </span>
-          <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 mt-0.5">
-            <Database className="w-4 h-4 text-indigo-600" />
-            <span>Backup e dados</span>
-          </h2>
+        <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-indigo-600 tracking-wider block">
+              Dados e armazenamento
+            </span>
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 mt-0.5">
+              <Database className="w-4 h-4 text-indigo-600" />
+              <span>Backup, Lixeira e Dados</span>
+            </h2>
+          </div>
+          {qtdLixeira > 0 && (
+            <span className="px-2.5 py-1 bg-red-100 text-red-700 font-extrabold text-[10px] rounded-full flex items-center gap-1">
+              <Trash2 className="w-3 h-3" />
+              <span>{qtdLixeira} na lixeira</span>
+            </span>
+          )}
         </div>
 
         <p className="text-xs text-slate-500 leading-relaxed">
-          Exporte uma cópia completa de todos os seus cursos, disciplinas, materiais e apontamentos num ficheiro ZIP organizado, ou restaure um backup existente.
+          Exporte backups completos, recupere itens excluídos na Lixeira ou restaure uma cópia dos seus dados.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
           <button
             type="button"
             onClick={() => setModalBackup({ aberto: true, aba: 'exportar' })}
@@ -207,6 +223,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           >
             <Download className="w-4 h-4 text-emerald-600" />
             <span>📥 Restaurar backup</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setModalLixeiraAberto(true)}
+            className="p-3.5 bg-rose-50 border border-rose-200 text-rose-900 font-extrabold text-xs rounded-2xl hover:bg-rose-100 transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs relative"
+          >
+            <Trash2 className="w-4 h-4 text-rose-600" />
+            <span>🗑️ Lixeira ({qtdLixeira})</span>
           </button>
         </div>
       </div>
@@ -272,6 +297,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           onRestauradoComSucesso={() => {
             onNavegar({ tipo: 'inicio' });
           }}
+        />
+      )}
+
+      {/* Modal da Lixeira */}
+      {modalLixeiraAberto && (
+        <LixeiraModal
+          onFechar={() => {
+            setModalLixeiraAberto(false);
+            recarregarLixeira();
+          }}
+          onAtualizado={recarregarLixeira}
         />
       )}
     </div>
