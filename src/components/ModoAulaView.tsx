@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { AcademicCameraModal } from './AcademicCameraModal';
 import {
   Zap,
   Mic,
@@ -64,8 +65,8 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
 
   // Active Modals for capture
   const [modalAudioAberto, setModalAudioAberto] = useState(false);
-  const [modalFotoAberto, setModalFotoAberto] = useState(false);
-  const [modalVideoAberto, setModalVideoAberto] = useState(false);
+  const [showAcademicCamera, setShowAcademicCamera] = useState(false);
+  const [academicCameraMode, setAcademicCameraMode] = useState<'foto' | 'video'>('foto');
   const [modalNotaAberto, setModalNotaAberto] = useState(false);
   const [modalInfoAberto, setModalInfoAberto] = useState(false);
   const [modalMaterialAberto, setModalMaterialAberto] = useState(false);
@@ -139,7 +140,6 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
     return () => {
       clearInterval(timerSession);
       if (timerAudioRef.current) clearInterval(timerAudioRef.current);
-      pararCamera();
     };
   }, []);
 
@@ -225,127 +225,61 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
   };
 
   // --- Photo Capturing ---
-  const handleIniciarCameraFoto = async () => {
+  const handleIniciarCameraFoto = () => {
     if (gravandoVideo) {
       mostrarToastConflito(
         'A gravação de vídeo está ativa. Pare o vídeo para tirar fotografias.'
       );
       return;
     }
-
-    setModalFotoAberto(true);
-    setCameraAtiva(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-    } catch {
-      alert('Não foi possível acessar a câmera.');
-      setModalFotoAberto(false);
-    }
+    setAcademicCameraMode('foto');
+    setShowAcademicCamera(true);
   };
 
-  const handleTirarFoto = () => {
-    if (!videoRef.current) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = videoRef.current.videoWidth || 640;
-    canvas.height = videoRef.current.videoHeight || 480;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg');
-      setFotografias((prev) => [
-        ...prev,
-        {
-          id: Date.now().toString(),
-          titulo: `Fotografia ${prev.length + 1}`,
-          url: dataUrl,
-          dataCriacao: new Date().toISOString(),
-        },
-      ]);
-    }
-    pararCamera();
-    setModalFotoAberto(false);
-  };
-
-  const pararCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach((t) => t.stop());
-      videoRef.current.srcObject = null;
-    }
-    setCameraAtiva(false);
+  const handleFotoCapturadaAcademic = (
+    dataUrl: string,
+    metadata?: { filter?: string; zoom?: number }
+  ) => {
+    setFotografias((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        titulo: `Fotografia ${prev.length + 1}${
+          metadata?.filter && metadata.filter !== 'normal'
+            ? ` (${metadata.filter.replace('_', ' ')})`
+            : ''
+        }`,
+        url: dataUrl,
+        dataCriacao: new Date().toISOString(),
+      },
+    ]);
+    setShowAcademicCamera(false);
   };
 
   // --- Video Capturing ---
-  const handleIniciarCameraVideo = async () => {
+  const handleIniciarCameraVideo = () => {
     if (gravandoAudio) {
       mostrarToastConflito(
         'Termine a gravação de áudio em segundo plano antes de iniciar um vídeo.'
       );
       return;
     }
-
-    setModalVideoAberto(true);
-    setCameraAtiva(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-        audio: true,
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-    } catch {
-      alert('Não foi possível acessar a câmera para vídeo.');
-      setModalVideoAberto(false);
-    }
+    setAcademicCameraMode('video');
+    setShowAcademicCamera(true);
   };
 
-  const handleIniciarGravacaoVideo = () => {
-    if (!videoRef.current || !videoRef.current.srcObject) return;
-    const stream = videoRef.current.srcObject as MediaStream;
-    videoChunksRef.current = [];
-    const recorder = new MediaRecorder(stream);
-    mediaRecorderRef.current = recorder;
-
-    recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) videoChunksRef.current.push(e.data);
-    };
-
-    recorder.onstop = () => {
-      const videoBlob = new Blob(videoChunksRef.current, { type: 'video/webm' });
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setVideos((prev) => [
-          ...prev,
-          {
-            id: Date.now().toString(),
-            titulo: `Vídeo ${prev.length + 1}`,
-            url: reader.result as string,
-            dataCriacao: new Date().toISOString(),
-          },
-        ]);
-      };
-      reader.readAsDataURL(videoBlob);
-      pararCamera();
-      setModalVideoAberto(false);
-    };
-
-    recorder.start();
-    setGravandoVideo(true);
-  };
-
-  const handlePararGravacaoVideo = () => {
-    if (mediaRecorderRef.current && gravandoVideo) {
-      mediaRecorderRef.current.stop();
-      setGravandoVideo(false);
-    }
+  const handleVideoGravadoAcademic = (videoUrl: string) => {
+    setVideos((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString(),
+        titulo: `Vídeo ${prev.length + 1} - Aula`,
+        url: videoUrl,
+        duracaoSegundos: 0,
+        dataCriacao: new Date().toISOString(),
+      },
+    ]);
+    setShowAcademicCamera(false);
   };
 
   // --- Quick Note ---
@@ -885,83 +819,15 @@ export const ModoAulaView: React.FC<ModoAulaViewProps> = ({
         </div>
       )}
 
-      {/* MODAL: Camera Photo */}
-      {modalFotoAberto && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden space-y-4 p-4 text-center">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-800 text-sm">Fotografar Quadro / Slides</h3>
-              <button
-                type="button"
-                onClick={() => {
-                  pararCamera();
-                  setModalFotoAberto(false);
-                }}
-                className="p-1 text-slate-400 hover:text-slate-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="relative bg-black rounded-2xl overflow-hidden aspect-video flex items-center justify-center">
-              <video ref={videoRef} className="w-full h-full object-cover" />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleTirarFoto}
-              className="w-full py-3 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition shadow-md flex items-center justify-center gap-2 cursor-pointer text-sm"
-            >
-              <Camera className="w-5 h-5" />
-              <span>Capturar Fotografia</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: Camera Video */}
-      {modalVideoAberto && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden space-y-4 p-4 text-center">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-slate-800 text-sm">Gravar Vídeo da Aula</h3>
-              <button
-                type="button"
-                onClick={() => {
-                  pararCamera();
-                  setModalVideoAberto(false);
-                }}
-                className="p-1 text-slate-400 hover:text-slate-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="relative bg-black rounded-2xl overflow-hidden aspect-video flex items-center justify-center">
-              <video ref={videoRef} className="w-full h-full object-cover" />
-            </div>
-
-            {gravandoVideo ? (
-              <button
-                type="button"
-                onClick={handlePararGravacaoVideo}
-                className="w-full py-3 bg-red-600 text-white font-bold rounded-2xl hover:bg-red-700 transition shadow-md flex items-center justify-center gap-2 cursor-pointer animate-pulse text-sm"
-              >
-                <Square className="w-5 h-5 fill-white" />
-                <span>Parar Gravação de Vídeo</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleIniciarGravacaoVideo}
-                className="w-full py-3 bg-indigo-600 text-white font-bold rounded-2xl hover:bg-indigo-700 transition shadow-md flex items-center justify-center gap-2 cursor-pointer text-sm"
-              >
-                <Video className="w-5 h-5" />
-                <span>Iniciar Gravação</span>
-              </button>
-            )}
-          </div>
-        </div>
+      {/* Academic Camera Modal for Photos & Videos */}
+      {showAcademicCamera && (
+        <AcademicCameraModal
+          isOpen={showAcademicCamera}
+          modoInicial={academicCameraMode}
+          onClose={() => setShowAcademicCamera(false)}
+          onCapturePhoto={handleFotoCapturadaAcademic}
+          onRecordVideo={handleVideoGravadoAcademic}
+        />
       )}
 
       {/* MODAL: Quick Note */}

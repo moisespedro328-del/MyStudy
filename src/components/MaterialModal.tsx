@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { AcademicCameraModal } from './AcademicCameraModal';
 import {
   X,
   FileText,
@@ -38,6 +39,8 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
   const [tempoAudioSegundos, setTempoAudioSegundos] = useState(0);
   const [audioUrlCapturado, setAudioUrlCapturado] = useState<string | null>(null);
 
+  const [showAcademicCamera, setShowAcademicCamera] = useState(false);
+  const [academicCameraMode, setAcademicCameraMode] = useState<'foto' | 'video'>('foto');
   const [cameraAtiva, setCameraAtiva] = useState(false);
   const [fotoCapturadaUrl, setFotoCapturadaUrl] = useState<string | null>(null);
 
@@ -452,16 +455,17 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
               )}
 
               <div className="flex gap-2">
-                {!cameraAtiva && (
-                  <button
-                    type="button"
-                    onClick={iniciarCamera}
-                    className="flex-1 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-semibold rounded-xl hover:bg-indigo-100 transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Camera className="w-4 h-4" />
-                    <span>Usar Câmera</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAcademicCameraMode('foto');
+                    setShowAcademicCamera(true);
+                  }}
+                  className="flex-1 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-semibold rounded-xl hover:bg-indigo-100 transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>Câmera HD (Zoom & Luz)</span>
+                </button>
 
                 <label className="flex-1 py-2.5 bg-slate-100 border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition text-xs flex items-center justify-center gap-1.5 cursor-pointer text-center">
                   <Upload className="w-4 h-4" />
@@ -582,16 +586,17 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
               )}
 
               <div className="flex gap-2">
-                {!cameraAtiva && (
-                  <button
-                    type="button"
-                    onClick={iniciarGravacaoVideo}
-                    className="flex-1 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-semibold rounded-xl hover:bg-indigo-100 transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Video className="w-4 h-4" />
-                    <span>Gravar Vídeo</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAcademicCameraMode('video');
+                    setShowAcademicCamera(true);
+                  }}
+                  className="flex-1 py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 font-semibold rounded-xl hover:bg-indigo-100 transition text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Video className="w-4 h-4" />
+                  <span>Gravar Vídeo com Câmera</span>
+                </button>
 
                 <label className="flex-1 py-2.5 bg-slate-100 border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition text-xs flex items-center justify-center gap-1.5 cursor-pointer text-center">
                   <Upload className="w-4 h-4" />
@@ -648,6 +653,37 @@ export const MaterialModal: React.FC<MaterialModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* Academic Camera Modal */}
+      {showAcademicCamera && (
+        <AcademicCameraModal
+          isOpen={showAcademicCamera}
+          modoInicial={academicCameraMode}
+          onClose={() => setShowAcademicCamera(false)}
+          onCapturePhoto={(dataUrl, metadata) => {
+            setFotoCapturadaUrl(dataUrl);
+            setArquivoUpload(null);
+            if (!titulo.trim()) {
+              setTitulo(
+                `Fotografia ${
+                  metadata?.filter && metadata.filter !== 'normal'
+                    ? `(${metadata.filter.replace('_', ' ')})`
+                    : 'do Quadro'
+                }`
+              );
+            }
+            setShowAcademicCamera(false);
+          }}
+          onRecordVideo={(videoUrl) => {
+            setVideoUrlCapturado(videoUrl);
+            setArquivoUpload(null);
+            if (!titulo.trim()) {
+              setTitulo(`Vídeo de Aula`);
+            }
+            setShowAcademicCamera(false);
+          }}
+        />
+      )}
     </div>
   );
 };
